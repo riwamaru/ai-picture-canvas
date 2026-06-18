@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Canvas - Image Swap Premium (Dynamic Island Edition)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <style>
+        /* === グローバル変数 === */
+        :root {
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-sidebar: #0f172a;
+            --bg-sidebar-hover: #1e293b;
+            --bg-sidebar-active: #334155;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-light: #eef2ff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-sidebar: #94a3b8;
+            --border-color: #e2e8f0;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --shadow-md: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05);
+            
+            /* 初期状態（PCモード）のセーフエリア（上部余白）は0 */
+            --safe-area-top: 0px; 
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background-color: #0f172a; color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        
+        /* === デバイスフレーム ＆ セーフエリア（Dynamic Island）対応 === */
+        #app-wrapper { width: 100vw; height: 100vh; display: flex; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); background-color: var(--bg-main); overflow: hidden; position: relative; }
+        
+        /* スマホ用ダイナミックアイランド本体（初期状態は非表示） */
+        .dynamic-island {
+            display: none;
+            position: absolute;
+            top: 11px; /* フレームのフチの内側 */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 110px;
+            height: 30px;
+            background-color: #000000;
+            border-radius: 20px;
+            z-index: 999; /* 最前面 */
+            transition: all 0.3s ease;
+        }
+
+        /* スマホモードがONになった時 */
+        #app-wrapper.mobile-mode {
+            --safe-area-top: 44px; /* ダイナミックアイランドを避けるための上部マージンを設定 */
+            width: 393px;
+            height: 852px;
+            border-radius: 44px;
+            border: 11px solid #1e293b;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        }
+        #app-wrapper.mobile-mode .dynamic-island { display: block; } /* スマホ時のみ表示 */
+
+        /* スマホモード時のサイドバーの振る舞い */
+        #app-wrapper.mobile-mode .sidebar { position: absolute; left: -280px; top: 0; z-index: 100; transition: left 0.3s ease; height: 100%; padding-top: calc(var(--safe-area-top) + 16px); }
+        #app-wrapper.mobile-mode .sidebar.open { left: 0; }
+        .sidebar-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 99; border-radius: 32px; }
+
+        /* === ログイン画面 === */
+        .login-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--bg-main); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .login-card { background: var(--bg-card); padding: 48px; border-radius: 24px; box-shadow: var(--shadow-md); width: 100%; max-width: 460px; border: 1px solid rgba(226, 232, 240, 0.8); text-align: center; }
+        .logo-area { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 32px; }
+        .logo-icon { background: linear-gradient(135deg, #818cf8, #6366f1); color: #ffffff; width: 40px; height: 40px; border-radius: var(--radius-md); font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+        .logo-text { font-size: 1.4rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.025em; }
+        
+        .device-selector { display: flex; background: #f1f5f9; padding: 4px; border-radius: var(--radius-md); margin-bottom: 32px; }
+        .device-option { flex: 1; border: none; border-radius: var(--radius-sm); padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease; background: transparent; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+        .device-option.selected { background: var(--bg-card); color: var(--text-main); box-shadow: var(--shadow-sm); font-weight: 600; }
+
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: #f8fafc; color: var(--text-main); outline: none; font-size: 0.95rem; transition: all 0.2s; }
+        .form-group input:focus { border-color: var(--primary); background: var(--bg-card); box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+        .sb-btn { background: var(--primary); color: #ffffff; border: none; padding: 14px; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600; cursor: pointer; width: 100%; margin-top: 12px; transition: background 0.2s; }
+        .sb-btn:hover { background: var(--primary-hover); }
+        .divider { display: flex; align-items: center; text-align: center; color: var(--text-muted); font-size: 0.8rem; margin: 24px 0; }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border-color); }
+        .oauth-btn { background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 500; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+        /* === 3. メインシステム === */
+        .app-container { display: none; width: 100%; height: 100%; color: var(--text-main); background: var(--bg-card); }
+        
+        .sidebar { width: 280px; background-color: var(--bg-sidebar); padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; height: 100%; flex-shrink: 0; }
+        .new-chat-btn { background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 12px 16px; border-radius: var(--radius-md); cursor: pointer; font-weight: 500; font-size: 0.9rem; text-align: left; display: flex; align-items: center; gap: 10px; }
+        .search-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: var(--radius-md); display: flex; gap: 8px; align-items: center; }
+        .search-box input { background: transparent; border: none; color: #fff; outline: none; width: 100%; font-size: 0.85rem; }
+        .search-box input::placeholder { color: #475569; }
+        
+        .history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .history-item { padding: 10px 14px; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; min-height: 40px; color: var(--text-sidebar); transition: all 0.2s; font-size: 0.9rem; font-weight: 500; }
+        .history-item:hover { background-color: var(--bg-sidebar-hover); color: #fff; }
+        .history-item.active { background-color: var(--bg-sidebar-active); color: #fff; font-weight: 600; }
+        .history-item-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item-input { width: 100%; background: transparent; border: 1px solid var(--primary); color: #fff; padding: 4px 8px; border-radius: var(--radius-sm); font-size: 0.85rem; outline: none; }
+
+        .user-profile { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; display: flex; align-items: center; justify-content: space-between; color: #fff; font-size: 0.85rem; }
+        .user-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+        .user-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-sidebar); }
+        .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, #818cf8, #6366f1); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8rem; flex-shrink: 0; }
+        .logout-btn { background: transparent; border: none; color: #475569; cursor: pointer; flex-shrink: 0; }
+
+        /* 右側メインエリア */
+        .chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; background-color: var(--bg-card); overflow: hidden; }
+        
+        /* 【重要】セーフエリア変数を利用して上部要素の位置を自動調整 */
+        .chat-header { 
+            padding: 18px 32px; 
+            padding-top: calc(var(--safe-area-top) + 14px); /* スマホ時は位置が自動で下がります */
+            background-color: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(12px); 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; 
+            align-items: center; 
+            min-height: calc(65px + var(--safe-area-top)); 
+            z-index: 10; 
+            transition: padding-top 0.3s ease, min-height 0.3s ease;
+        }
+        
+        .chat-header h1 { font-size: 1.05rem; color: var(--text-main); font-weight: 600; cursor: pointer; padding: 6px 10px; border-radius: var(--radius-sm); transition: background 0.15s; display: inline-block; max-width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
+        .chat-header h1:hover { background-color: var(--bg-main); color: var(--primary); }
+        .chat-header-input { font-size: 1.05rem; color: var(--text-main); font-weight: 600; border: 1px solid var(--primary); padding: 4px 8px; border-radius: var(--radius-sm); outline: none; width: 60%; background: #ffffff; }
+        
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; margin-right: 16px; color: var(--text-main); width: 24px; height: 24px; position: relative; }
+        #app-wrapper.mobile-mode .mobile-menu-btn { display: block; }
+
+        .chat-history { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; background: var(--bg-main); }
+        .message-row { display: flex; width: 100%; }
+        .message-row.assistant { justify-content: flex-start; }
+        .message-row.user { justify-content: flex-end; }
+        
+        .bubble { max-width: 70%; padding: 14px 18px; font-size: 0.92rem; line-height: 1.6; border-radius: 20px; }
+        .message-row.assistant .bubble.text { background-color: var(--bg-card); color: var(--text-main); border-top-left-radius: 4px; box-shadow: var(--shadow-sm); border: 1px solid rgba(226, 232, 240, 0.6); }
+        .message-row.user .bubble.text { background-color: var(--primary); color: #ffffff; border-top-right-radius: 4px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15); }
+        .bubble.image { padding: 0; background: transparent; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-md); border: 1px solid var(--border-color); }
+        .bubble.image img { max-width: 100%; max-height: 240px; display: block; object-fit: cover; }
+
+        .typing-loader { display: flex; align-items: center; gap: 5px; padding: 6px 4px; }
+        .typing-loader span { width: 7px; height: 7px; background-color: var(--primary); border-radius: 50%; display: inline-block; animation: pulse 1.2s infinite ease-in-out both; opacity: 0.4; }
+        .typing-loader span:nth-child(1) { animation-delay: 0s; }
+        .typing-loader span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-loader span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.4; } 50% { transform: scale(1.2); opacity: 1; } }
+
+        .input-area-wrapper { padding: 0 32px 32px 32px; background-color: var(--bg-main); display: flex; flex-direction: column; }
+        .preview-container { display: none; align-self: flex-start; position: relative; background-color: var(--bg-card); padding: 6px; border-radius: var(--radius-md); box-shadow: var(--shadow-md); border: 1px solid var(--border-color); margin-bottom: -4px; z-index: 5; margin-left: 16px; }
+        #preview { max-height: 84px; border-radius: var(--radius-sm); display: block; }
+        .preview-loading { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--primary); border-radius: var(--radius-md); font-weight: 600; }
+        .close-preview { position: absolute; top: -6px; right: -6px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        .input-area { background-color: var(--bg-card); padding: 12px 18px; border-radius: 24px; display: flex; gap: 14px; align-items: center; border: 1px solid var(--border-color); box-shadow: var(--shadow-md); position: relative; }
+        .upload-circle-btn { background-color: #f1f5f9; color: var(--text-muted); width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+        .input-area input[type="text"] { flex: 1; background: transparent; border: none; color: var(--text-main); outline: none; font-size: 0.95rem; }
+        .input-area input[type="text"]::placeholder { color: #94a3b8; }
+        .send-btn { background-color: var(--primary); color: #ffffff; border: none; padding: 10px 20px; border-radius: 18px; cursor: pointer; font-weight: 600; font-size: 0.85rem; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="login-screen" id="login-screen">
+        <div class="login-card">
+            <div class="logo-area"><div class="logo-icon">✦</div><div class="logo-text">AI Canvas</div></div>
+            
+            <div class="device-selector">
+                <button class="device-option selected" id="opt-pc" onclick="setDeviceMode('pc')">
+                    <span class="device-icon">💻</span> <span class="device-label">PC環境</span>
+                </button>
+                <button class="device-option" id="opt-mobile" onclick="setDeviceMode('mobile')">
+                    <span class="device-icon">📱</span> <span class="device-label">スマホ環境</span>
+                </button>
+            </div>
+
+            <div class="form-group"><label>メールアドレス</label><input type="email" id="email-input" value="user@example.com"></div>
+            <div class="form-group"><label>パスワード</label><input type="password" id="password-input" value="password123"></div>
+            <button class="sb-btn" onclick="handleAuthSuccess()">ワークスペースを起動</button>
+            <div class="divider">または</div>
+            <button class="oauth-btn" onclick="handleAuthSuccess('google_user@gmail.com')">
+                <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5.04c1.64 0 3.12.56 4.28 1.67l3.2-3.2C17.52 1.58 14.96 1 12 1 7.35 1 3.4 3.65 1.5 7.5l3.6 2.8C6.02 6.91 8.79 5.04 12 5.04z"/><path fill="#4285F4" d="M23.5 12.25c0-.82-.07-1.6-.2-2.35H12v4.45h6.45c-.28 1.47-1.11 2.71-2.36 3.55l3.65 2.84c2.14-1.97 3.36-4.87 3.36-8.49z"/><path fill="#FBBC05" d="M5.1 14.7c-.24-.72-.38-1.49-.38-2.3s.14-1.58.38-2.3L1.5 7.3C.54 9.22 0 11.35 0 13.6s.54 4.38 1.5 6.3l3.6-2.9z"/><path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.65-2.84c-1.01.67-2.31 1.09-4.31 1.09-3.21 0-5.98-1.87-6.95-4.66L1.45 16.5C3.35 20.35 7.3 23 12 23z"/></svg>
+                Google アカウントで続行
+            </button>
+        </div>
+    </div>
+
+    <div id="app-wrapper">
+        <div class="dynamic-island"></div>
+        
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar(false)"></div>
+
+        <div class="app-container" id="app-container">
+            <div class="sidebar" id="app-sidebar">
+                <button class="new-chat-btn" onclick="createNewChat()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    新規プロジェクト
+                </button>
+                <div class="search-box">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="search-input" placeholder="プロジェクトを検索..." oninput="filterChats()">
+                </div>
+                <div class="history-list" id="history-list"></div>
+                <div class="user-profile">
+                    <div class="user-info"><div class="user-avatar" id="user-initial">U</div><span id="user-email">user@example.com</span></div>
+                    <button class="logout-btn" onclick="handleLogout()">終了</button>
+                </div>
+            </div>
+
+            <div class="chat-container">
+                <div class="chat-header" id="chat-header-container">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar(true)">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                    <h1 id="chat-title" onclick="startEditHeaderTitle()">プロフィール写真の変更</h1>
+                </div>
+                
+                <div class="chat-history" id="chat-history"></div>
+                
+                <div class="input-area-wrapper">
+                    <div class="preview-container" id="preview-container">
+                        <button class="close-preview" onclick="clearImage()">×</button>
+                        <div id="preview-loading-text" class="preview-loading" style="display: none;">最適化中...</div>
+                        <img id="preview" alt="プレビュー">
+                    </div>
+                    <div class="input-area">
+                        <button class="upload-circle-btn" onclick="document.getElementById('file-input').click()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                        <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="previewImage(this)">
+                        <input type="text" id="user-input" placeholder="AIへの指示内容を入力..." onkeypress="if(event.key === 'Enter') sendMessage()">
+                        <button class="send-btn" onclick="sendMessage()">生成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedDevice = 'pc'; 
+        function setDeviceMode(mode) {
+            selectedDevice = mode;
+            document.getElementById('opt-pc').classList.toggle('selected', mode === 'pc');
+            document.getElementById('opt-mobile').classList.toggle('selected', mode === 'mobile');
+        }
+
+        function toggleMobileSidebar(open) {
+            if (selectedDevice !== 'mobile') return;
+            document.getElementById('app-sidebar').classList.toggle('open', open);
+            document.getElementById('sidebar-overlay').style.display = open ? 'block' : 'none';
+        }
+
+        function handleAuthSuccess(customEmail) {
+            const email = customEmail ? customEmail : document.getElementById('email-input').value;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            document.getElementById('user-email').innerText = email;
+            document.getElementById('user-initial').innerText = email.charAt(0).toUpperCase();
+            
+            const wrapper = document.getElementById('app-wrapper');
+            wrapper.className = selectedDevice === 'mobile' ? 'mobile-mode' : '';
+
+            renderSidebar(); renderChat();
+        }
+
+        function handleLogout() {
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            toggleMobileSidebar(false);
+        }
+
+        let chats = [
+            {
+                id: 1, title: "プロフィール写真の変更",
+                messages: [
+                    { role: "assistant", type: "text", content: "スタジオへようこそ。変更したいポートレート写真をアップロードし、生成の指示をお伝えください。" },
+                    { role: "user", type: "image", content: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400" },
+                    { role: "user", type: "text", content: "背景を明るいカフェ風にして、服装をカジュアルなシャツに変えて" },
+                    { role: "assistant", type: "text", content: "リクエストを処理しました。指定のカフェ背景とカジュアルシャツへのフィッティングが完了しました。" },
+                    { role: "assistant", type: "image", content: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400" }
+                ]
+            },
+            {
+                id: 2, title: "履歴書用写真のフォーマル化",
+                messages: [
+                    { role: "assistant", type: "text", content: "オフィシャル写真向けへの補正モードです。服装のフォーマル化、背景色の置換を行います。" },
+                    { role: "user", type: "text", content: "Tシャツで写っているスナップ写真を、紺のスーツ姿にできますか？" }
+                ]
+            }
+        ];
+
+        let activeChatId = 1; let currentImageData = null;
+
+        function renderSidebar() {
+            const list = document.getElementById('history-list'); list.innerHTML = '';
+            chats.forEach(chat => {
+                const item = document.createElement('div');
+                item.className = `history-item ${chat.id === activeChatId ? 'active' : ''}`;
+                item.id = `sidebar-item-${chat.id}`;
+                const textSpan = document.createElement('span');
+                textSpan.className = 'history-item-text'; textSpan.innerText = chat.title;
+                textSpan.onclick = (e) => { selectChat(chat.id); toggleMobileSidebar(false); };
+                textSpan.ondblclick = (e) => { e.stopPropagation(); startEditSidebarTitle(chat.id); };
+                item.appendChild(textSpan); list.appendChild(item);
+            });
+        }
+
+        function renderChat() {
+            const chat = chats.find(c => c.id === activeChatId);
+            document.getElementById('chat-title').innerText = chat.title;
+            const historyContainer = document.getElementById('chat-history'); historyContainer.innerHTML = '';
+            chat.messages.forEach(msg => appendMessageRow(msg.role, msg.type, msg.content));
+            historyContainer.scrollTop = historyContainer.scrollHeight;
+        }
+
+        function selectChat(id) { activeChatId = id; renderSidebar(); renderChat(); }
+
+        function startEditHeaderTitle() {
+            const chat = chats.find(c => c.id === activeChatId); const headerContainer = document.getElementById('chat-header-container');
+            if (document.getElementById('header-title-input')) return;
+            
+            const isMobile = selectedDevice === 'mobile';
+            headerContainer.innerHTML = (isMobile ? `<button class="mobile-menu-btn" onclick="toggleMobileSidebar(true)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>` : '') + 
+                                       `<input type="text" id="header-title-input" class="chat-header-input" value="${chat.title}">`;
+            const input = document.getElementById('header-title-input'); input.focus(); input.select();
+            input.onblur = () => saveHeaderTitle(input.value);
+            input.onkeypress = (e) => { if (e.key === 'Enter') saveHeaderTitle(input.value); };
+        }
+        function saveHeaderTitle(newValue) {
+            const chat = chats.find(c => c.id === activeChatId); const title = newValue.trim() || chat.title; chat.title = title;
+            const headerContainer = document.getElementById('chat-header-container'); const isMobile = selectedDevice === 'mobile';
+            headerContainer.innerHTML = (isMobile ? `<button class="mobile-menu-btn" onclick="toggleMobileSidebar(true)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>` : '') + 
+                                       `<h1 id="chat-title" onclick="startEditHeaderTitle()">${title}</h1>`;
+            renderSidebar();
+        }
+        function startEditSidebarTitle(id) {
+            const chat = chats.find(c => c.id === id); const itemElement = document.getElementById(`sidebar-item-${id}`);
+            itemElement.innerHTML = `<input type="text" id="sidebar-input-${id}" class="history-item-input" value="${chat.title}">`;
+            const input = document.getElementById(`sidebar-input-${id}`); input.focus(); input.select();
+            input.onblur = () => saveSidebarTitle(id, input.value);
+            input.onkeypress = (e) => { if (e.key === 'Enter') saveSidebarTitle(id, input.value); };
+        }
+        function saveSidebarTitle(id, newValue) {
+            const chat = chats.find(c => c.id === id); chat.title = newValue.trim() || chat.title;
+            renderSidebar(); if (id === activeChatId) { document.getElementById('chat-title').innerText = chat.title; }
+        }
+
+        function createNewChat() {
+            const newId = chats.length > 0 ? Math.max(...chats.map(c => c.id)) + 1 : 1;
+            chats.unshift({ id: newId, title: `未設定のプロジェクト`, messages: [{ role: "assistant", type: "text", content: "新しいキャンバスです。画像をセットして指示を入力してください。" }] });
+            activeChatId = newId; renderSidebar(); renderChat(); toggleMobileSidebar(false);
+        }
+
+        function filterChats() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const list = document.getElementById('history-list'); list.innerHTML = '';
+            chats.forEach(chat => {
+                if (chat.title.toLowerCase().includes(query) || chat.messages.some(m => m.type === 'text' && m.content.toLowerCase().includes(query))) {
+                    const item = document.createElement('div');
+                    item.className = `history-item ${chat.id === activeChatId ? 'active' : ''}`;
+                    item.id = `sidebar-item-${chat.id}`;
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'history-item-text'; textSpan.innerText = chat.title;
+                    textSpan.onclick = () => { selectChat(chat.id); toggleMobileSidebar(false); };
+                    item.appendChild(textSpan); list.appendChild(item);
+                }
+            });
+        }
+
+        function appendMessageRow(role, type, content) {
+            const historyContainer = document.getElementById('chat-history');
+            const row = document.createElement('div'); row.className = `message-row ${role}`;
+            const bubble = document.createElement('div');
+            if (type === 'image') {
+                bubble.className = 'bubble image'; const img = document.createElement('img'); img.src = content; bubble.appendChild(img);
+            } else {
+                bubble.className = 'bubble text'; bubble.innerText = content;
+            }
+            row.appendChild(bubble); historyContainer.appendChild(row);
+            return row;
+        }
+
+        async function previewImage(input) {
+            const file = input.files[0]; if (!file) return;
+            const previewContainer = document.getElementById('preview-container');
+            const previewImg = document.getElementById('preview');
+            const loadingText = document.getElementById('preview-loading-text');
+
+            previewContainer.style.display = 'block';
+            const isHeic = file.name.toLowerCase().endsWith('.heic') || file.type === 'image/heic';
+
+            if (isHeic) {
+                loadingText.style.display = 'flex';
+                try {
+                    const convertedBlob = await heic2any({ blob: file, toType: 'image/png' });
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result; currentImageData = e.target.result; loadingText.style.display = 'none';
+                    }
+                    reader.readAsDataURL(convertedBlob);
+                } catch (error) {
+                    console.error(error); alert("HEIC変換エラー"); clearImage();
+                }
+            } else {
+                loadingText.style.display = 'none';
+                const reader = new FileReader();
+                reader.onload = function(e) { previewImg.src = e.target.result; currentImageData = e.target.result; }
+                reader.readAsDataURL(file);
+            }
+        }
+        function clearImage() { currentImageData = null; document.getElementById('preview-container').style.display = 'none'; document.getElementById('file-input').value = ''; }
+
+        function sendMessage() {
+            const inputElement = document.getElementById('user-input'); const text = inputElement.value.trim();
+            if (!text && !currentImageData) return;
+
+            const chat = chats.find(c => c.id === activeChatId);
+            if (chat.title.startsWith("未設定のプロジェクト")) { chat.title = text ? text : "画像編集タスク"; renderSidebar(); }
+
+            if (currentImageData) { chat.messages.push({ role: "user", type: "image", content: currentImageData }); appendMessageRow("user", "image", currentImageData); }
+            if (text) { chat.messages.push({ role: "user", type: "text", content: text }); appendMessageRow("user", "text", text); }
+
+            inputElement.value = ''; const savedImageData = currentImageData; clearImage();
+
+            const historyContainer = document.getElementById('chat-history');
+            const loaderRow = document.createElement('div'); loaderRow.className = "message-row assistant";
+            loaderRow.innerHTML = `<div class="bubble text"><div class="typing-loader"><span></span><span></span><span></span></div></div>`;
+            historyContainer.appendChild(loaderRow); historyContainer.scrollTop = historyContainer.scrollHeight;
+
+            setTimeout(() => {
+                loaderRow.remove();
+                let replyText = savedImageData ? `指示内容「${text || '画像処理'}」に基づき、画像を再構成しました。` : "画像をアップロードしてください。";
+                const textRow = appendMessageRow("assistant", "text", ""); const textBubble = textRow.querySelector('.bubble');
+                let index = 0;
+                function typeWriter() {
+                    if (index < replyText.length) {
+                        textBubble.innerText += replyText.charAt(index); index++; historyContainer.scrollTop = historyContainer.scrollHeight; setTimeout(typeWriter, 25);
+                    } else {
+                        chat.messages.push({ role: "assistant", type: "text", content: replyText });
+                        if (savedImageData) { setTimeout(() => { chat.messages.push({ role: "assistant", type: "image", content: savedImageData }); appendMessageRow("assistant", "image", savedImageData); }, 400); }
+                    }
+                }
+                typeWriter();
+            }, 1200);
+        }
+    </script>
+</body>
+</html>s
