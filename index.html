@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Canvas - 自社専用クローズドAI画像加工システム</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-main: #f8fafc;        /* 明るいスレートホワイト */
+            --bg-sidebar: #ffffff;     /* 純白のサイドバー */
+            --bg-card: #ffffff;        /* 純白のカード */
+            --bg-input: #f1f5f9;       /* 薄いグレーの入力欄背景 */
+            --bg-glass: rgba(0, 0, 0, 0.01);
+            --bg-glass-hover: rgba(0, 0, 0, 0.03);
+            --border-glass: #e2e8f0;   /* 明るくクリーンな境界線 */
+            --border-glass-active: #0ea5e9;
+            
+            --primary: #0ea5e9;        /* スカイブルー */
+            --primary-gradient: linear-gradient(135deg, #0ea5e9, #6366f1);
+            --primary-hover: #0284c7;
+            --primary-light: rgba(14, 165, 233, 0.06);
+            
+            --text-main: #0f172a;      /* 視認性の高いダークネイビー文字 */
+            --text-muted: #64748b;     /* ミュートグレー文字 */
+            --text-link: #0284c7;
+            
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 10px 20px -3px rgba(0, 0, 0, 0.03);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif; 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        
+        #app-wrapper { 
+            width: 100vw; 
+            height: 100vh; 
+            background: linear-gradient(135deg, #f0f4f8, #f8fafc);
+            overflow: hidden; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        
+        /* ユーティリティスクロールバー */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+
+        /* === 1. ログイン画面 (明るいクリーンUI) === */
+        .login-screen { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background: linear-gradient(135deg, #e0e7ff, #f8fafc);
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 9999; 
+        }
+        .login-screen::before {
+            content: ''; position: absolute; width: 400px; height: 400px; background: #38bdf8; filter: blur(140px); opacity: 0.15; top: 15%; left: 25%;
+        }
+        .login-screen::after {
+            content: ''; position: absolute; width: 400px; height: 400px; background: #818cf8; filter: blur(140px); opacity: 0.15; bottom: 15%; right: 25%;
+        }
+        .login-card { 
+            background: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(20px);
+            padding: 50px; 
+            border-radius: 28px; 
+            box-shadow: var(--shadow-lg); 
+            width: 100%; 
+            max-width: 480px; 
+            border: 1px solid rgba(255, 255, 255, 0.7); 
+            text-align: center; 
+            position: relative;
+            z-index: 10;
+        }
+        .logo-area { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 35px; }
+        .logo-icon { 
+            background: var(--primary-gradient); 
+            color: #ffffff; 
+            width: 46px; 
+            height: 46px; 
+            border-radius: var(--radius-md); 
+            font-weight: bold; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 1.4rem; 
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+        }
+        .logo-text { font-size: 1.6rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.02em; }
+        .logo-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: -30px; margin-bottom: 30px; font-weight: 400; }
+        .form-group { margin-bottom: 24px; text-align: left; }
+        .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; letter-spacing: 0.03em; }
+        .form-group input { 
+            width: 100%; 
+            padding: 14px 18px; 
+            border-radius: var(--radius-md); 
+            border: 1px solid var(--border-glass); 
+            background: #ffffff; 
+            color: var(--text-main);
+            outline: none; 
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .form-group input:focus { 
+            border-color: var(--primary); 
+            box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12); 
+        }
+        .sb-btn { 
+            background: var(--primary-gradient); 
+            color: #ffffff; 
+            border: none; 
+            padding: 16px; 
+            border-radius: var(--radius-md); 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            width: 100%; 
+            transition: opacity 0.2s, transform 0.1s; 
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+        }
+        .sb-btn:hover { opacity: 0.95; transform: translateY(-1px); }
+        .sb-btn:active { transform: translateY(0); }
+        .security-notice { font-size: 0.75rem; color: var(--text-muted); margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
+
+        /* === 2. 3カラムメインコンテナ === */
+        .main-container { 
+            flex: 1; 
+            display: grid; 
+            grid-template-columns: 290px 1fr 450px; 
+            height: 100vh; 
+            overflow: hidden; 
+            position: relative; 
+        }
+        
+        .column { 
+            height: 100%; 
+            overflow-y: auto; 
+            padding: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 24px; 
+            background: transparent; 
+            border-right: 1px solid var(--border-glass); 
+        }
+        .column:last-child { border-right: none; overflow: hidden; justify-content: flex-start; background: #ffffff; }
+
+        /* === 左カラム：サイドバー === */
+        .sidebar { background-color: var(--bg-sidebar); padding: 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 2px 0 10px rgba(0,0,0,0.01); }
+        .sidebar-top { display: flex; flex-direction: column; gap: 20px; flex: 1; overflow: hidden; }
+        
+        .app-title-area { display: flex; align-items: center; gap: 10px; padding: 4px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+        .app-title-icon { color: var(--primary); font-size: 1.3rem; }
+        .app-title-text { font-size: 1.2rem; font-weight: 700; color: var(--text-main); letter-spacing: 0.02em; }
+
+        .new-chat-btn { 
+            background: #ffffff; 
+            color: var(--text-main); 
+            border: 1px solid var(--border-glass); 
+            padding: 14px; 
+            border-radius: var(--radius-md); 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            text-align: left; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            transition: all 0.2s; 
+            box-shadow: var(--shadow-sm);
+        }
+        .new-chat-btn:hover { background: var(--bg-input); border-color: #cbd5e1; }
+        
+        .history-section { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .history-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; padding: 0 4px 6px 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .history-item { 
+            padding: 12px; 
+            border-radius: var(--radius-sm); 
+            font-size: 0.85rem; 
+            color: var(--text-muted); 
+            cursor: pointer; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            transition: all 0.2s; 
+            border: 1px solid transparent;
+            font-weight: 500;
+        }
+        .history-item:hover { background: var(--bg-input); color: var(--text-main); }
+        .history-item.active { 
+            background: var(--primary-light); 
+            color: var(--text-link); 
+            font-weight: 600; 
+            border-left: 3px solid var(--primary); 
+            border-color: transparent transparent transparent var(--primary);
+        }
+
+        .sidebar-bottom { border-top: 1px solid #f1f5f9; padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+        .nav-button { 
+            width: 100%; 
+            padding: 12px; 
+            border-radius: var(--radius-sm); 
+            font-size: 0.85rem; 
+            color: var(--text-muted); 
+            background: transparent; 
+            border: none; 
+            text-align: left; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            transition: all 0.2s; 
+            font-weight: 500;
+        }
+        .nav-button:hover { background: var(--bg-input); color: var(--text-main); }
+        
+        .user-profile { 
+            padding: 14px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            font-size: 0.85rem; 
+            color: var(--text-muted); 
+            background: var(--bg-main); 
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md); 
+            margin-top: 8px; 
+        }
+        .user-email { font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-role-container { display: flex; justify-content: space-between; align-items: center; }
+        .user-role-badge { background: rgba(14, 165, 233, 0.08); color: var(--text-link); font-size: 0.75rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; border: 1px solid rgba(14, 165, 233, 0.15); }
+        .logout-text { color: #f43f5e; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: color 0.2s; }
+        .logout-text:hover { color: #be123c; text-decoration: underline; }
+
+        /* === 中央カラム：メイン操作エリア === */
+        .center-header { border-bottom: 1px solid var(--border-glass); padding-bottom: 16px; margin-bottom: 4px; display: flex; align-items: center; width: 100%; }
+        .title-input-wrapper { width: 100%; position: relative; }
+        .editable-title { 
+            width: 100%; 
+            font-size: 1.4rem; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            border: 1px solid transparent; 
+            background: transparent; 
+            padding: 8px 12px; 
+            border-radius: var(--radius-sm); 
+            outline: none; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            font-family: inherit;
+        }
+        .editable-title:hover { background: rgba(0,0,0,0.03); }
+        .editable-title:focus { background: #ffffff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); cursor: text; }
+        
+        .recommend-tag { color: var(--text-link); font-weight: 600; font-size: 0.75rem; margin-left: 6px; background: rgba(14, 165, 233, 0.08); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(14, 165, 233, 0.12); }
+
+        /* 元画像ドラッグ＆ドロップ対応セクション */
+        .upload-section { 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-glass); 
+            border-radius: var(--radius-lg); 
+            padding: 20px; 
+            box-shadow: var(--shadow-sm); 
+            transition: border-color 0.3s;
+        }
+        .upload-section.dragover { border-color: var(--primary); background: rgba(14, 165, 233, 0.02); }
+        
+        .upload-box { 
+            border: 2px dashed #cbd5e1; 
+            border-radius: var(--radius-md); 
+            padding: 26px; 
+            text-align: center; 
+            cursor: pointer; 
+            background: var(--bg-main); 
+            transition: all 0.2s; 
+        }
+        .upload-box:hover { border-color: var(--primary); background: var(--primary-light); }
+        .upload-box i { font-size: 2rem; color: var(--primary); margin-bottom: 10px; display: block; }
+        
+        .preview-container { display: flex; gap: 20px; align-items: center; margin-top: 4px; }
+        .preview-wrap { position: relative; width: 110px; height: 145px; border-radius: var(--radius-md); overflow: hidden; display: none; background: #f1f5f9; border: 1px solid var(--border-glass); box-shadow: var(--shadow-sm); }
+        .preview-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .status-badge { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(14, 165, 233, 0.9); backdrop-filter: blur(4px); color: white; padding: 4px; font-size: 0.65rem; text-align: center; font-weight: 600; letter-spacing: 0.02em; }
+        .upload-meta-text { flex: 1; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+        .upload-meta-text strong { color: var(--text-main); font-weight: 700; }
+
+        /* 加工カテゴリカード (6種類) */
+        .card { 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-glass); 
+            border-radius: var(--radius-lg); 
+            padding: 24px; 
+            box-shadow: var(--shadow-sm); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 16px; 
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .card:focus-within { border-color: rgba(14, 165, 233, 0.5); box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+        .card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; color: var(--text-main); }
+        .card-title span { background: var(--primary-light); color: var(--primary); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; border: 1px solid rgba(14, 165, 233, 0.15); }
+        
+        .card-grid-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group.full-width { grid-column: span 2; }
+        .input-group label { display: flex; align-items: center; font-size: 0.78rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.02em; }
+        
+        .input-group select, .input-group input[type="text"] { 
+            width: 100%; 
+            padding: 10px 14px; 
+            border: 1px solid var(--border-glass); 
+            border-radius: var(--radius-sm); 
+            background: #ffffff;
+            color: var(--text-main);
+            outline: none; 
+            font-size: 0.85rem; 
+            transition: all 0.2s;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.01);
+        }
+        .input-group select:focus, .input-group input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08); }
+        .input-group select option { background: #ffffff; color: var(--text-main); }
+        .input-group input[type="file"] { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; cursor: pointer; }
+
+        /* 強度セッティング用 */
+        .intensity-container { display: flex; gap: 4px; background: var(--bg-main); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); }
+        .intensity-btn { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 6px; font-size: 0.75rem; font-weight: 600; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+        .intensity-btn.active { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-sm); }
+
+        /* === 右カラム：結果・調整エリア === */
+        .right-column-container { display: flex; flex-direction: column; height: 100%; width: 100%; justify-content: space-between; position: relative; }
+        .action-area { display: flex; flex-direction: column; gap: 16px; flex-shrink: 0; }
+        
+        .generate-btn-wrapper { position: relative; width: 100%; }
+        .generate-btn { 
+            width: 100%;
+            background: var(--primary-gradient); 
+            color: white; 
+            border: none; 
+            padding: 16px; 
+            border-radius: var(--radius-md); 
+            font-size: 1.05rem; 
+            font-weight: 700; 
+            cursor: pointer; 
+            box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25); 
+            transition: all 0.2s; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .generate-btn:hover { opacity: 0.95; box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35); }
+        .generate-btn:disabled { background: #cbd5e1; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+        
+        /* 生成上限カウンター (F-09要件) */
+        .quota-counter { font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 6px; display: flex; justify-content: space-between; padding: 0 4px; font-weight: 500; }
+        .quota-counter span.alert { color: #f43f5e; font-weight: 700; }
+
+        /* ローディング演出オーバーレイ */
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);
+            z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius-lg);
+            border: 1px solid var(--border-glass); animation: fadeIn 0.2s ease;
+        }
+        .spinner {
+            width: 50px; height: 50px; border: 4px solid rgba(14, 165, 233, 0.1); border-left-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        .loading-text { font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+        .loading-subtext { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+
+        .results-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; min-height: 280px; }
+        .result-item { position: relative; border-radius: var(--radius-md); overflow: hidden; aspect-ratio: 3/4; background: #f1f5f9; border: 1px solid var(--border-glass); transition: transform 0.2s; box-shadow: var(--shadow-sm); }
+        .result-item.selected { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25); }
+        .result-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+        .result-actions { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 8px; display: flex; justify-content: space-between; align-items: center; opacity: 0; transition: opacity 0.2s; }
+        .result-item:hover .result-actions { opacity: 1; }
+        .result-badge { font-size: 0.65rem; background: rgba(255,255,255,0.9); color: var(--text-main); padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: var(--shadow-sm); }
+        .action-icon-btn { background: #fff; color: #0f172a; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: transform 0.1s; box-shadow: var(--shadow-sm); }
+        .action-icon-btn:hover { transform: scale(1.1); }
+        
+        /* === 3. 部分修正アシスタント（コンパクト⇔全画面拡大設計） === */
+        .chat-section { 
+            display: flex; 
+            flex-direction: column; 
+            border: 1px solid var(--border-glass); 
+            border-radius: var(--radius-lg); 
+            background: var(--bg-main); 
+            overflow: hidden; 
+            margin-top: 16px; 
+            height: 240px; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            flex-shrink: 0; 
+            position: relative; 
+            z-index: 10; 
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* 全画面拡大表示スタイル定義 */
+        .chat-section.expanded { 
+            position: fixed; 
+            top: 40px; 
+            bottom: 40px; 
+            left: 40px; 
+            right: 40px; 
+            height: calc(100vh - 80px); 
+            width: calc(100vw - 80px);
+            background: #ffffff; 
+            box-shadow: var(--shadow-lg); 
+            border-color: #cbd5e1;
+            z-index: 999;
+        }
+        
+        .chat-header-bar { 
+            background: #ffffff; 
+            padding: 12px 16px; 
+            border-bottom: 1px solid var(--border-glass); 
+            font-size: 0.85rem; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+        }
+        .chat-header-left { display: flex; align-items: center; gap: 8px; }
+        .chat-header-left i { color: var(--primary); }
+        .chat-header-bar .ai-badge { background: var(--primary-light); color: var(--text-link); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: bold; border: 1px solid rgba(14, 165, 233, 0.15); }
+        
+        .expand-toggle-btn { 
+            background: #ffffff; 
+            border: 1px solid var(--border-glass); 
+            border-radius: 6px; 
+            padding: 5px 10px; 
+            font-size: 0.75rem; 
+            cursor: pointer; 
+            font-weight: 600; 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            color: var(--text-muted); 
+            transition: all 0.15s; 
+            box-shadow: var(--shadow-sm);
+        }
+        .expand-toggle-btn:hover { background: var(--bg-input); color: var(--text-main); }
+
+        .chat-history { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 16px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            font-size: 0.85rem; 
+            background: #ffffff; 
+        }
+        
+        .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; position: relative; animation: fadeIn 0.25s ease-out; font-weight: 500; }
+        .msg.assistant { background: var(--bg-main); border: 1px solid var(--border-glass); color: var(--text-main); align-self: flex-start; border-top-left-radius: 2px; }
+        .msg.user { background: var(--primary-gradient); color: white; align-self: flex-end; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.15); border-top-right-radius: 2px; }
+        
+        .typing-dots { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; }
+        .typing-dots span { width: 6px; height: 6px; background-color: var(--text-muted); border-radius: 50%; animation: blink 1.4s infinite both; }
+        .typing-dots span:nth-child(2) { animation-delay: .2s; }
+        .typing-dots span:nth-child(3) { animation-delay: .4s; }
+
+        .chat-input-area { padding: 12px; background: #ffffff; border-top: 1px solid var(--border-glass); display: flex; gap: 10px; flex-shrink: 0; }
+        .chat-input-area input { 
+            flex: 1; 
+            border: 1px solid var(--border-glass); 
+            padding: 10px 14px; 
+            border-radius: var(--radius-md); 
+            outline: none; 
+            font-size: 0.85rem; 
+            background: var(--bg-main); 
+            color: var(--text-main);
+            transition: all 0.2s;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.01);
+        }
+        .chat-input-area input:focus { background: #ffffff; border-color: var(--primary); }
+        .chat-input-area button { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 0 16px; 
+            border-radius: var(--radius-md); 
+            cursor: pointer; 
+            font-size: 0.85rem; 
+            font-weight: 600; 
+            transition: background 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+        .chat-input-area button:hover { background: var(--primary-hover); }
+
+        /* === 4. 管理者システム設定用モーダル === */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.3); backdrop-filter: blur(10px);
+            z-index: 10000; display: none; align-items: center; justify-content: center; animation: fadeIn 0.2s ease;
+        }
+        .modal-card {
+            background: #ffffff; border: 1px solid #cbd5e1; width: 100%; max-width: 680px; border-radius: 24px;
+            box-shadow: var(--shadow-lg); padding: 32px; display: flex; flex-direction: column; gap: 24px;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+        .modal-header h3 { font-size: 1.25rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .modal-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; transition: color 0.15s; }
+        .modal-close-btn:hover { color: var(--text-main); }
+        
+        .settings-tab-content { display: flex; flex-direction: column; gap: 20px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
+        .settings-section-title { font-size: 0.85rem; color: var(--text-link); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: -8px; }
+        
+        .log-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem; }
+        .log-table th { padding: 10px; color: var(--text-muted); border-bottom: 1px solid #f1f5f9; font-weight: 600; }
+        .log-table td { padding: 12px 10px; border-bottom: 1px solid #f8fafc; color: var(--text-main); font-weight: 500; }
+        
+        .settings-grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
+    </style>
+</head>
+<body>
+
+    <!-- ログイン画面 -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-card">
+            <div class="logo-area">
+                <div class="logo-icon"><i class="fa-solid fa-wand-sparkles"></i></div>
+                <div class="logo-text">AI Canvas</div>
+            </div>
+            <div class="logo-subtitle">自社専用高付加価値 AI 画像加工システム</div>
+            
+            <div class="form-group">
+                <label><i class="fa-solid fa-user-tag"></i> 店舗スタッフID（メールアドレス）</label>
+                <input type="email" id="email-input" value="manager@store.com">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> パスワード</label>
+                <input type="password" id="password-input" value="••••••••">
+            </div>
+            <button class="sb-btn" onclick="handleAuthSuccess()">システムにセキュアログイン</button>
+            
+            <div class="security-notice">
+                <i class="fa-solid fa-shield-halved"></i> クローズドプロキシ環境：外部のAI学習を防止しています
+            </div>
+        </div>
+    </div>
+
+    <!-- メインアプリケーション画面 -->
+    <div id="app-wrapper" style="display: none;">
+        <div class="main-container">
+            
+            <!-- 左カラム（サイドバー） -->
+            <div class="column sidebar">
+                <div class="sidebar-top">
+                    <div class="app-title-area">
+                        <span class="app-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                        <span class="app-title-text">AI Canvas</span>
+                    </div>
+
+                    <button class="new-chat-btn" onclick="createNewSession()">
+                        <i class="fa-solid fa-plus"></i> 新しい画像加工セッション
+                    </button>
+                    
+                    <div class="history-section" id="history-list">
+                        <div class="history-label">加工セッション履歴</div>
+                        <div class="history-item active" onclick="loadHistory(this, 'キャストA_ドレス衣装加工_高級ラウンジ風')">
+                            <i class="fa-regular fa-image"></i> キャストA_ドレス衣装加工...
+                        </div>
+                        <div class="history-item" onclick="loadHistory(this, 'キャストB_和装スタジオ背景')">
+                            <i class="fa-regular fa-image"></i> キャストB_和装スタジオ背景
+                        </div>
+                        <div class="history-item" onclick="loadHistory(this, 'キャストC_カジュアル髪型変更')">
+                            <i class="fa-regular fa-image"></i> キャストC_カジュアル髪型変更
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-bottom">
+                    <button class="nav-button" id="admin-settings-btn" onclick="openSettings()">
+                        <i class="fa-solid fa-sliders"></i> ⚙️ 管理者向けシステム設定
+                    </button>
+                    <button class="nav-button" onclick="alert('利用マニュアル・Imagen特有の指示のコツドキュメントを開きます。')">
+                        <i class="fa-solid fa-book-open"></i> ヘルプ＆ドキュメント
+                    </button>
+                    
+                    <div class="user-profile">
+                        <span id="user-display" class="user-email">manager@store.com</span>
+                        <div class="user-role-container">
+                            <span class="user-role-badge" id="user-role-badge">管理者</span>
+                            <span class="logout-text" onclick="handleLogout()"><i class="fa-solid fa-arrow-right-from-bracket"></i> ログアウト</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中央カラム（メイン操作エリア） -->
+            <div class="column" id="center-operation-column">
+                <div class="center-header">
+                    <div class="title-input-wrapper">
+                        <input type="text" id="session-title" class="editable-title" value="キャストA_ドレス衣装加工_高級ラウンジ風" title="クリックしてタイトルを編集できます" placeholder="セッションタイトルを入力">
+                    </div>
+                </div>
+
+                <!-- 元画像アップロード (D&Dエリア) -->
+                <div class="upload-section" id="drop-zone">
+                    <h4 style="font-size: 0.85rem; margin-bottom: 10px; color: var(--text-main);"><i class="fa-solid fa-file-arrow-up"></i> 1. 元画像の指定 (必須)</h4>
+                    <div class="upload-box" onclick="document.getElementById('src-file').click()" id="upload-placeholder">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">写真をドラッグ＆ドロップ、またはクリックして選択</p>
+                        <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">※顔立ち・表情を維持したまま特定レイヤーのみ書き換えます</p>
+                    </div>
+                    <input type="file" id="src-file" accept="image/*" style="display: none;" onchange="handleSrcImage(this)">
+                    
+                    <div class="preview-container" id="preview-container" style="display: none;">
+                        <div class="preview-wrap" id="src-preview-wrap">
+                            <span class="status-badge"><i class="fa-solid fa-user-check"></i> 人物検出完了</span>
+                            <img id="src-preview" src="" alt="元画像プレビュー">
+                        </div>
+                        <div class="upload-meta-text">
+                            <strong>アイデンティティロック有効</strong><br>
+                            キャストの顔立ち・パーソナリティ特徴をクローズドAIが完全固定しました。以下の加工カテゴリ指定に従って画像変換を行います。
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 style="font-size: 0.85rem; margin-bottom: -8px; color: var(--text-main); padding-left: 4px;"><i class="fa-solid fa-layer-group"></i> 2. 加工カテゴリ設定 (複合指示対応)</h4>
+
+                <!-- A: 背景設定 -->
+                <div class="card" data-category="背景">
+                    <div class="card-title"><span>A</span> 背景設定</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="高級ラウンジ" selected>高級ラウンジ</option><option value="明るいカフェ風">明るいカフェ風</option><option value="夜のネオン街">夜のネオン街</option><option value="ゴシック調スタジオ">ゴシック調スタジオ</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: 大理石の柱と柔らかな間接照明">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- B: 衣装設定 -->
+                <div class="card" data-category="衣装">
+                    <div class="card-title"><span>B</span> 衣装設定</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="フォーマルスーツ">フォーマルスーツ</option><option value="カジュアルシャツ">カジュアルシャツ</option><option value="パーティードレス" selected>パーティードレス</option><option value="和装（着物）">和装（着物）</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: 黒のシルクVネックロングドレス">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- C: 髪型設定 -->
+                <div class="card" data-category="髪型">
+                    <div class="card-title"><span>C</span> 髪型設定</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="ゆるふわ巻き髪">ゆるふわ巻き髪</option><option value="ストレートロング">ストレートロング</option><option value="アップスタイル">アップスタイル</option><option value="ハーフアップ">ハーフアップ</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: 前髪シースルーできれい目のまとめ髪">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- D: ポーズ指定 -->
+                <div class="card" data-category="ポーズ">
+                    <div class="card-title"><span>D</span> ポーズ指定</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="正面立ち姿">正面立ち姿</option><option value="斜め振り返り">斜め振り返り</option><option value="ソファーに腰掛け">ソファーに腰掛け</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: 手をあごに少し添えるポーズ">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- E: 雰囲気・ライティング -->
+                <div class="card" data-category="雰囲気">
+                    <div class="card-title"><span>E</span> 全体の雰囲気・ライティング</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="シネマティック（高級感）" selected>シネマティック（高級感）</option><option value="ふんわり（可愛く）">ふんわり（可愛く）</option><option value="クール＆スタイリッシュ">クール＆スタイリッシュ</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: 左側からの暖色系サイドライティング">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- F: メイク設定 -->
+                <div class="card" data-category="メイク">
+                    <div class="card-title"><span>F</span> メイク設定</div>
+                    <div class="card-grid-fields">
+                        <div class="input-group full-width">
+                            <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                            <input type="file" accept="image/*">
+                        </div>
+                        <div class="input-group">
+                            <label>テンプレートから選択</label>
+                            <select class="tpl-select" id="make-select" onchange="autoGenerateTitle()"><option value="">選択してください</option><option value="ナチュラルナチュラル">ナチュラル美肌</option><option value="華やかパーティーメイク">華やかパーティーメイク</option><option value="トレンド韓国風メイク">トレンド韓国風メイク</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label>加工強度調整</label>
+                            <div class="intensity-container">
+                                <button class="intensity-btn" onclick="setIntensity(this, '弱')">弱</button>
+                                <button class="intensity-btn active" onclick="setIntensity(this, '中')">中</button>
+                                <button class="intensity-btn" onclick="setIntensity(this, '強')">強</button>
+                            </div>
+                        </div>
+                        <div class="input-group full-width">
+                            <label>自由テキスト指示</label>
+                            <input type="text" class="free-text" placeholder="例: リップの赤みを少し強め、艶感を出す">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右カラム（結果・調整エリア） -->
+            <div class="column" id="right-result-column">
+                <div class="right-column-container">
+                    
+                    <!-- 生成アクション & プレビューグリッド -->
+                    <div class="action-area">
+                        <div class="generate-btn-wrapper">
+                            <button class="generate-btn" id="main-generate-btn" onclick="executeGeneration()">
+                                <i class="fa-solid fa-bolt"></i> 高品質宣材写真 生成実行
+                            </button>
+                            <div class="quota-counter">
+                                <span id="quota-text">セッション内生成回数: 0 / 5 回</span>
+                                <span id="quota-warning"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- 擬似ローディング画面 -->
+                        <div class="loading-overlay" id="gen-loading">
+                            <div class="spinner"></div>
+                            <div class="loading-text">Google Imagen API を呼び出し中...</div>
+                            <div class="loading-subtext">クローズド画像パイプラインでセキュア生成中 (目標30s以内)</div>
+                        </div>
+                        
+                        <div style="margin-top: 4px; position: relative;">
+                            <h4 style="font-size:0.85rem; margin-bottom: 8px; color: var(--text-muted); font-weight: 600;">
+                                <i class="fa-regular fa-images"></i> 生成候補（4バリエーション）
+                            </h4>
+                            <div class="results-grid" id="results-grid">
+                                <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                                <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                                <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                                <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 個別やり直しチャットエリア -->
+                    <div class="chat-section" id="chat-section-box">
+                        <div class="chat-header-bar">
+                            <div class="chat-header-left">
+                                <i class="fa-solid fa-comments"></i>
+                                <span>個別修正アシスタント</span>
+                                <span class="ai-badge">Imagen v3</span>
+                            </div>
+                            <button class="expand-toggle-btn" id="expand-btn" onclick="toggleChatExpand()">
+                                <i class="fa-solid fa-expand" id="expand-icon-fa"></i> <span id="expand-text">全画面表示</span>
+                            </button>
+                        </div>
+                        <div class="chat-history" id="chat-history">
+                            <div class="msg assistant">キャストの基本顔立ちを完全にロックしています。4枚の生成バリエーションから特定の1枚を選び、「2枚目の衣装を明るい赤色のシルクに変更して」「背景のライトをもっと暗く落として」等の自然言語指示によるピンポイント部分修正が可能です。</div>
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="特定のバリエーションへの部分修正指示を入力..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                            <button onclick="sendChatMessage()">送信</button>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 管理者システム設定用モーダル -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-screwdriver-wrench" style="color: var(--primary);"></i> AI Canvas 管理者システム設定</h3>
+                <button class="modal-close-btn" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="settings-tab-content">
+                <div class="settings-section-title">基盤システムステータス</div>
+                <div class="settings-grid-row">
+                    <div class="input-group">
+                        <label>接続画像生成エンジン</label>
+                        <select disabled><option>Google Imagen API (Vertex AI経由)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>セッションあたり生成上限設定</label>
+                        <input type="number" id="setting-max-quota" value="5" onchange="updateMaxQuota(this.value)">
+                    </div>
+                </div>
+                
+                <div class="settings-section-title">データ保護ポリシー状況</div>
+                <div class="user-profile" style="background: var(--bg-main); margin-top:0;">
+                    <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-user-shield" style="color:#10b981;"></i> Supabase Row Level Security (RLS) : 有効</span>
+                    <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-key" style="color:#10b981;"></i> APIキー露出遮断 (Edge Functions運用) : 有効</span>
+                    <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-circle-nodes" style="color:#10b981;"></i> Google Imagen API学習データ利用オプトアウト : 適用済</span>
+                </div>
+
+                <div class="settings-section-title">月次APIコスト・利用ログモニタリング (試算比較)</div>
+                <table class="log-table">
+                    <thead>
+                        <tr><th>日付</th><th>スタッフID</th><th>セッション名</th><th>生成回数</th><th>ステータス</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>2026/07/02</td><td>manager@store.com</td><td>キャストA_ドレス衣装加工_高級ラウンジ風</td><td>3回</td><td><span style="color:#10b981; font-weight:600;">正常完了</span></td></tr>
+                        <tr><td>2026/07/01</td><td>staff_01@store.com</td><td>キャストB_和装スタジオ背景</td><td>5回</td><td><span style="color:#ef4444; font-weight:600;">上限到達</span></td></tr>
+                        <tr><td>2026/06/30</td><td>staff_02@store.com</td><td>キャストC_カジュアル髪型変更</td><td>2回</td><td><span style="color:#10b981; font-weight:600;">正常完了</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 擬似セッション管理変数
+        let generationCount = 0;
+        let maxQuota = 5;
+
+        // ログイン処理
+        function handleAuthSuccess() {
+            const email = document.getElementById('email-input').value;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-wrapper').style.display = 'flex';
+            document.getElementById('user-display').innerText = email;
+            
+            // ロールシミュレーション
+            const badge = document.getElementById('user-role-badge');
+            const adminBtn = document.getElementById('admin-settings-btn');
+            if (email.includes('manager')) {
+                badge.innerText = "管理者";
+                badge.style.color = "#0284c7";
+                badge.style.background = "rgba(14, 165, 233, 0.08)";
+                adminBtn.style.display = "flex";
+            } else {
+                badge.innerText = "店舗スタッフ";
+                badge.style.color = "#d97706";
+                badge.style.background = "rgba(251, 191, 36, 0.08)";
+                adminBtn.style.display = "none";
+            }
+        }
+
+        function handleLogout() {
+            document.getElementById('app-wrapper').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            generationCount = 0;
+            updateQuotaUI();
+        }
+
+        // ドラッグ＆ドロップ対応必須要件の実装
+        const dropZone = document.getElementById('drop-zone');
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                document.getElementById('src-file').files = files;
+                handleSrcImage({ files: files });
+            }
+        });
+
+        function handleSrcImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('upload-placeholder').style.display = 'none';
+                document.getElementById('preview-container').style.display = 'flex';
+                const wrap = document.getElementById('src-preview-wrap');
+                const img = document.getElementById('src-preview');
+                img.src = e.target.result;
+                wrap.style.display = 'block';
+                autoGenerateTitle();
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // 加工強度ボタン制御
+        function setIntensity(btn, val) {
+            const parent = btn.parentElement;
+            parent.querySelectorAll('.intensity-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        // 推奨要件：セッション名自動生成（背景・衣装・メイクなどの連動）
+        function autoGenerateTitle() {
+            const bgSelect = document.querySelector('[data-category="背景"] .tpl-select').value || "通常背景";
+            const clothSelect = document.querySelector('[data-category="衣装"] .tpl-select').value || "通常衣装";
+            const makeSelect = document.getElementById('make-select').value || "メイク未指定";
+            
+            const autoTitle = `キャスト加工_${bgSelect}_${clothSelect}_${makeSelect.substring(0,4)}`;
+            document.getElementById('session-title').value = autoTitle;
+            
+            const activeHistory = document.querySelector('.history-item.active');
+            if(activeHistory) {
+                activeHistory.innerHTML = `<i class="fa-regular fa-image"></i> ${autoTitle.length > 13 ? autoTitle.substring(0, 13) + "..." : autoTitle}`;
+            }
+        }
+
+        // チャットの拡大表示トグル
+        function toggleChatExpand() {
+            const chatBox = document.getElementById('chat-section-box');
+            const expandText = document.getElementById('expand-text');
+            const iconFa = document.getElementById('expand-icon-fa');
+            const history = document.getElementById('chat-history');
+
+            if (chatBox.classList.contains('expanded')) {
+                chatBox.classList.remove('expanded');
+                iconFa.className = "fa-solid fa-expand";
+                expandText.innerText = "全画面表示";
+            } else {
+                chatBox.classList.add('expanded');
+                iconFa.className = "fa-solid fa-compress";
+                expandText.innerText = "元に戻す";
+            }
+            history.scrollTop = history.scrollHeight;
+        }
+
+        function updateQuotaUI() {
+            const qText = document.getElementById('quota-text');
+            const qWarn = document.getElementById('quota-warning');
+            const genBtn = document.getElementById('main-generate-btn');
+            
+            qText.innerText = `セッション内生成回数: ${generationCount} / ${maxQuota} 回`;
+            
+            if(generationCount >= maxQuota) {
+                qWarn.innerText = "上限に達しました (コスト抑制制御中)";
+                qWarn.className = "alert";
+                genBtn.disabled = true;
+            } else {
+                qWarn.innerText = "";
+                qWarn.className = "";
+                genBtn.disabled = false;
+            }
+        }
+
+        function updateMaxQuota(val) {
+            maxQuota = parseInt(val) || 5;
+            updateQuotaUI();
+        }
+
+        function executeGeneration() {
+            const previewImg = document.getElementById('src-preview').src;
+            if (!previewImg) {
+                alert("まずは「1. 元画像の指定」エリアにキャストの写真をアップロードしてください。");
+                return;
+            }
+
+            if(generationCount >= maxQuota) return;
+
+            const loading = document.getElementById('gen-loading');
+            loading.style.display = 'flex';
+
+            setTimeout(() => {
+                loading.style.display = 'none';
+                generationCount++;
+                updateQuotaUI();
+
+                const grid = document.getElementById('results-grid');
+                grid.innerHTML = '';
+
+                // 4バリエーション画像の生成シミュレーション
+                for(let i = 1; i <= 4; i++) {
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.onclick = function() {
+                        document.querySelectorAll('.result-item').forEach(r => r.classList.remove('selected'));
+                        item.classList.add('selected');
+                    };
+                    item.innerHTML = `
+                        <img src="${previewImg}" style="filter: hue-rotate(${i * 45}deg) saturate(${1 + (i*0.15)}) brightness(1.05);">
+                        <div class="result-actions">
+                            <span class="result-badge">候補 ${i}</span>
+                            <button class="action-icon-btn" onclick="saveImage(${i}); event.stopPropagation();" title="自社ストレージに高画質版を保存"><i class="fa-solid fa-floppy-disk"></i></button>
+                        </div>
+                    `;
+                    grid.appendChild(item);
+                }
+                showAiTypingResponse("Google Imagen APIを連携し、指定レイヤー(背景:高級ラウンジ / 衣装:パーティードレス / メイク)を正確に反映した4パリエーションを出力しました。気になる箇所の追加指示をチャットからどうぞ。");
+            }, 2500);
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            const history = document.getElementById('chat-history');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'msg user';
+            userMsg.innerText = text;
+            history.appendChild(userMsg);
+            input.value = '';
+            history.scrollTop = history.scrollHeight;
+
+            setTimeout(() => {
+                showAiTypingResponse(`調整指示「${text}」を受け付けました。アイデンティティロックしたキャストの特定顔パーツのセグメンテーションマスクを維持したまま、該当レイヤーのみを再サンプリングして新しい候補をレンダリングします。しばらくお待ちください。`);
+            }, 600);
+        }
+
+        function showAiTypingResponse(fullText) {
+            const history = document.getElementById('chat-history');
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'msg assistant';
+            typingIndicator.id = 'typing-indicator';
+            typingIndicator.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+            history.appendChild(typingIndicator);
+            history.scrollTop = history.scrollHeight;
+
+            setTimeout(() => {
+                typingIndicator.remove();
+                const aiMsg = document.createElement('div');
+                aiMsg.className = 'msg assistant';
+                history.appendChild(aiMsg);
+                
+                let index = 0;
+                function type() {
+                    if (index < fullText.length) {
+                        aiMsg.innerText += fullText.charAt(index);
+                        index++;
+                        history.scrollTop = history.scrollHeight;
+                        setTimeout(type, 12);
+                    }
+                }
+                type();
+            }, 700);
+        }
+
+        function saveImage(index) {
+            alert(`候補画像 ${index} を最高画質のPNGとして、安全に自社専用の非公開 Supabase Storage へ保存しました。追加利用料やデータ流出の恐れはありません。`);
+        }
+
+        function createNewSession() {
+            if(confirm("現在の加工設定をクリアして、新しい画像加工を開始しますか？")) {
+                document.getElementById('src-file').value = '';
+                document.getElementById('src-preview').src = '';
+                document.getElementById('preview-container').style.display = 'none';
+                document.getElementById('upload-placeholder').style.display = 'block';
+                document.getElementById('session-title').value = "新規画像加工セッション";
+                generationCount = 0;
+                updateQuotaUI();
+                
+                document.getElementById('results-grid').innerHTML = `
+                    <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                    <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                    <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                    <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
+                `;
+            }
+        }
+
+        function loadHistory(element, sessionName) {
+            document.querySelectorAll('.history-item').forEach(item => item.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('session-title').value = sessionName;
+        }
+
+        function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
+        function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
+    </script>
+</body>
+</html>
