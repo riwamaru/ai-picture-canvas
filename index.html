@@ -87,7 +87,7 @@
         .login-card { 
             background: rgba(255, 255, 255, 0.8); 
             backdrop-filter: blur(20px);
-            padding: 50px; 
+            padding: 50px 50px 40px 50px; 
             border-radius: 28px; 
             box-shadow: var(--shadow-lg); 
             width: 100%; 
@@ -540,6 +540,65 @@
         
         .settings-grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
+        /* Vision AI自動解析 疑似UI */
+        .vision-status {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s ease;
+        }
+        .vision-status.analyzing {
+            background: rgba(14, 165, 233, 0.06);
+            color: var(--primary);
+            border: 1px dashed var(--primary);
+        }
+        .vision-status.completed {
+            background: rgba(16, 185, 129, 0.06);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        /* モデレーション警告UI */
+        .moderation-warning {
+            background-color: #fff1f2;
+            border: 1px solid #fecdd3;
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: #e11d48;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-sm);
+            animation: fadeIn 0.2s ease;
+        }
+        .moderation-warning i {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .moderation-warning-close {
+            margin-left: auto;
+            background: transparent;
+            border: none;
+            color: #f43f5e;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
+        }
+        .moderation-warning-close:hover {
+            color: #be123c;
+        }
+
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
@@ -565,10 +624,6 @@
                 <input type="password" id="password-input" value="••••••••">
             </div>
             <button class="sb-btn" onclick="handleAuthSuccess()">システムにセキュアログイン</button>
-            
-            <div class="security-notice">
-                <i class="fa-solid fa-shield-halved"></i> クローズドプロキシ環境：外部のAI学習を防止しています
-            </div>
         </div>
     </div>
 
@@ -794,7 +849,7 @@
                         <!-- 擬似ローディング画面 -->
                         <div class="loading-overlay" id="gen-loading">
                             <div class="spinner"></div>
-                            <div class="loading-text">Google Imagen API を呼び出し中...</div>
+                            <div class="loading-text">OpenAI API (DALL-E 3) をプライマリとして呼び出し中...</div>
                             <div class="loading-subtext">クローズド画像パイプラインでセキュア生成中 (目標30s以内)</div>
                         </div>
                         
@@ -802,12 +857,25 @@
                             <h4 style="font-size:0.85rem; margin-bottom: 8px; color: var(--text-muted); font-weight: 600;">
                                 <i class="fa-regular fa-images"></i> 生成候補（4バリエーション）
                             </h4>
+
+                            <!-- モデレーション警告UI -->
+                            <div class="moderation-warning" id="moderation-warning-box">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span id="moderation-warning-text">⚠️【ポーズ指定】の内容または参考画像が規約に抵触している可能性があります</span>
+                                <button class="moderation-warning-close" onclick="closeModerationWarning()"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+
                             <div class="results-grid" id="results-grid">
                                 <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
                                 <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
                                 <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
                                 <div class="result-item"><div style="display:flex; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.8rem; font-weight:400;">画像未生成</div></div>
                             </div>
+
+                            <!-- デバッグ用：モデレーション警告テストボタン（本番リリース時に削除予定） -->
+                            <button onclick="testModerationWarning()" style="margin-top: 10px; width: 100%; padding: 8px; font-size: 0.75rem; border: 1px dashed #f43f5e; background: #fff5f5; color: #e11d48; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <i class="fa-solid fa-bug"></i> [デバッグ用] 警告表示テスト
+                            </button>
                         </div>
                     </div>
 
@@ -851,7 +919,9 @@
                 <div class="settings-grid-row">
                     <div class="input-group">
                         <label>接続画像生成エンジン</label>
-                        <select disabled><option>Google Imagen API (Vertex AI経由)</option></select>
+                        <select disabled>
+                            <option>プライマリ：OpenAI API (DALL-E 3) ／ フォールバック：Google Imagen API</option>
+                        </select>
                     </div>
                     <div class="input-group">
                         <label>セッションあたり生成上限設定</label>
@@ -861,7 +931,7 @@
                 
                 <div class="settings-section-title">データ保護ポリシー状況</div>
                 <div class="user-profile" style="background: var(--bg-main); margin-top:0;">
-                    <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-user-shield" style="color:#10b981;"></i> Supabase Row Level Security (RLS) : 有効</span>
+                    <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> 事前モデレーションスキャン (OpenAI Moderation API) : 有効</span>
                     <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-key" style="color:#10b981;"></i> APIキー露出遮断 (Edge Functions運用) : 有効</span>
                     <span style="color: var(--text-main); font-size:0.8rem; font-weight:500;"><i class="fa-solid fa-circle-nodes" style="color:#10b981;"></i> Google Imagen API学習データ利用オプトアウト : 適用済</span>
                 </div>
@@ -1059,7 +1129,16 @@
                     `;
                     grid.appendChild(item);
                 }
-                showAiTypingResponse("Google Imagen APIを連携し、指定レイヤー(背景:高級ラウンジ / 衣装:パーティードレス / メイク)を正確に反映した4パリエーションを出力しました。気になる箇所の追加指示をチャットからどうぞ。");
+
+                // まれにフォールバック（例：20%の確率）
+                const isFallback = Math.random() < 0.2;
+                let responseText = "";
+                if (isFallback) {
+                    responseText = "OpenAI APIでの生成中にエラーが発生したため、Google Imagen APIで再生成しました。指定レイヤー(背景:高級ラウンジ / 衣装:パーティードレス / メイク)を正確に反映した4バリエーションを出力しました。気になる箇所の追加指示をチャットからどうぞ。";
+                } else {
+                    responseText = "OpenAI API (DALL-E 3) を連携し、指定レイヤー(背景:高級ラウンジ / 衣装:パーティードレス / メイク)を正確に反映した4バリエーションを出力しました。気になる箇所の追加指示をチャットからどうぞ。";
+                }
+                showAiTypingResponse(responseText);
             }, 2500);
         }
 
@@ -1140,6 +1219,52 @@
 
         function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
+
+        // Vision AI自動解析の疑似UI実装
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.card').forEach(card => {
+                const fileInput = card.querySelector('input[type="file"]');
+                if (!fileInput) return;
+                
+                fileInput.addEventListener('change', function() {
+                    if (!this.files || this.files.length === 0) return;
+                    
+                    let statusDiv = card.querySelector('.vision-status');
+                    if (!statusDiv) {
+                        statusDiv = document.createElement('div');
+                        statusDiv.className = 'vision-status';
+                        fileInput.parentNode.appendChild(statusDiv);
+                    }
+                    
+                    statusDiv.className = 'vision-status analyzing';
+                    statusDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 解析中...`;
+                    
+                    setTimeout(() => {
+                        statusDiv.className = 'vision-status completed';
+                        statusDiv.innerHTML = `<i class="fa-solid fa-circle-check"></i> 解析完了：画像の特徴を検出しました`;
+                    }, 1000);
+                });
+            });
+        });
+
+        // モデレーション警告表示関数
+        function showModerationWarning(category) {
+            const box = document.getElementById('moderation-warning-box');
+            const textSpan = document.getElementById('moderation-warning-text');
+            textSpan.innerText = `⚠️【${category}】の内容または参考画像が規約に抵触している可能性があります`;
+            box.style.display = 'flex';
+        }
+
+        function closeModerationWarning() {
+            document.getElementById('moderation-warning-box').style.display = 'none';
+        }
+
+        // デバッグ用：モデレーション警告をランダムなカテゴリで表示
+        function testModerationWarning() {
+            const categories = ['背景', '衣装', '髪型', 'ポーズ', '雰囲気', 'メイク'];
+            const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+            showModerationWarning(randomCategory);
+        }
     </script>
 </body>
 </html>
