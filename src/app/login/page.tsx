@@ -5,17 +5,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * ログイン。招待されたアドレスだけが入れる。
+ * ログイン画面。モック（index.html）の .login-screen をそのまま使う。
  *
- * ★ shouldCreateUser: false にしてある。
- *   招待されていないアドレスを入力しても、ここでユーザーは作られない。
- *   （DB のトリガでも同じことを止めている。片方が外れても破れないようにするため）
+ * 変えたのは中身だけ：
+ *   - モックは「manager を含めば管理者」という擬似ロール判定だった。
+ *     実際のロールは ADMIN_EMAILS（サーバー側）で決まる。
+ *   - 招待されたアドレスだけが入れる（shouldCreateUser: false ／ DB のトリガ）。
  */
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"link" | "password">("link");
+  const [mode, setMode] = useState<"password" | "link">("password");
   const [status, setStatus] = useState<{ kind: "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -38,9 +39,7 @@ export default function LoginPage() {
         error
           ? {
               kind: "error",
-              text:
-                "ログインリンクを送れませんでした。招待されたアドレスか確認してください。\n" +
-                `（${error.message}）`,
+              text: "ログインリンクを送れませんでした。招待されたアドレスかご確認ください。",
             }
           : {
               kind: "info",
@@ -64,66 +63,110 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 460 }}>
-      <h1>AI Canvas 体験版</h1>
-      <p className="muted">招待された方のみご利用いただけます。</p>
-
-      <div className="panel">
-        {status && <div className={`notice ${status.kind}`}>{status.text}</div>}
-
-        <div className="row" style={{ marginBottom: 14 }}>
-          <button
-            type="button"
-            aria-pressed={mode === "link"}
-            className={mode === "link" ? "primary" : ""}
-            onClick={() => setMode("link")}
-          >
-            メールのリンクで入る
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "password"}
-            className={mode === "password" ? "primary" : ""}
-            onClick={() => setMode("password")}
-          >
-            パスワードで入る
-          </button>
+    <div className="login-screen" id="login-screen">
+      <div className="login-card">
+        <div className="logo-area">
+          <div className="logo-icon">
+            <i className="fa-solid fa-wand-sparkles" />
+          </div>
+          <div className="logo-text">AI Canvas</div>
+        </div>
+        <div className="logo-badge-ver">v2.0 確定版</div>
+        <div className="logo-subtitle">
+          自社専用クローズド AI 画像加工システム（画像編集・inpainting）
         </div>
 
+        {status && (
+          <div
+            className="role-hint"
+            style={{
+              textAlign: "left",
+              marginBottom: 20,
+              padding: "10px 14px",
+              borderRadius: "var(--radius-sm)",
+              background: status.kind === "error" ? "#fff5f5" : "rgba(14,165,233,0.06)",
+              border: `1px solid ${status.kind === "error" ? "rgba(244,63,94,0.3)" : "rgba(14,165,233,0.2)"}`,
+              color: status.kind === "error" ? "#e11d48" : "var(--text-link)",
+              fontWeight: 600,
+            }}
+          >
+            {status.text}
+          </div>
+        )}
+
         <form onSubmit={submit}>
-          <label style={{ marginBottom: 12 }}>
-            <span className="muted">メールアドレス</span>
+          <div className="form-group">
+            <label>
+              <i className="fa-solid fa-user-tag" /> 店舗スタッフID（メールアドレス）
+            </label>
             <input
               type="email"
+              id="email-input"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              placeholder="招待されたメールアドレス"
             />
-          </label>
+            <div className="role-hint">
+              <i className="fa-solid fa-circle-info" /> 招待された方のみご利用いただけます。ロール（管理者
+              / 店舗スタッフ）はサーバー側の設定で決まります
+            </div>
+          </div>
 
           {mode === "password" && (
-            <label style={{ marginBottom: 12 }}>
-              <span className="muted">パスワード（管理者から伝えられたもの）</span>
+            <div className="form-group">
+              <label>
+                <i className="fa-solid fa-lock" /> パスワード
+              </label>
               <input
                 type="password"
+                id="password-input"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                placeholder="管理者から伝えられたパスワード"
               />
-            </label>
+              <div className="role-hint">
+                <span
+                  className="logout-text"
+                  style={{ marginLeft: 0 }}
+                  onClick={() => setMode("link")}
+                >
+                  <i className="fa-solid fa-envelope" /> パスワードが分からない場合はメールでログインリンクを受け取る
+                </span>
+              </div>
+            </div>
           )}
 
-          <button className="primary" type="submit" disabled={busy}>
-            {busy ? "送信中…" : mode === "link" ? "ログインリンクを送る" : "ログイン"}
+          {mode === "link" && (
+            <div className="form-group">
+              <div className="role-hint">
+                <span
+                  className="logout-text"
+                  style={{ marginLeft: 0 }}
+                  onClick={() => setMode("password")}
+                >
+                  <i className="fa-solid fa-lock" /> パスワードでログインする
+                </span>
+              </div>
+            </div>
+          )}
+
+          <button className="sb-btn" type="submit" disabled={busy}>
+            {busy
+              ? "送信中..."
+              : mode === "password"
+                ? "システムにセキュアログイン"
+                : "ログインリンクをメールで送る"}
           </button>
         </form>
-      </div>
 
-      <p className="muted">
-        アップロードした写真と生成結果は非公開で保管され、招待された本人だけが閲覧できます。
-      </p>
-    </main>
+        <div className="security-notice">
+          <i className="fa-solid fa-shield-halved" /> RLS 有効・全 API 呼び出しはサーバーサイドで実行
+        </div>
+      </div>
+    </div>
   );
 }

@@ -32,6 +32,7 @@
  */
 
 import type { CategoryId, MakeupStrength } from "./categories";
+import { DEMO_TEMPLATES } from "./templates.demo";
 
 export type Template = {
   readonly id: string;
@@ -315,7 +316,17 @@ export const DEFAULT_TEMPLATE_ID: Partial<Record<CategoryId, string>> = Object.f
   tattoo_removal: "tattoo_removal.skin_restore",
 });
 
-const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
+/**
+ * ★ デモ環境での追加分（PoC には無い）。
+ *
+ * 確定 UI（index.html）の選択肢は、PoC が用意したカタログとは別物である。
+ * 上の TEMPLATES は PoC からの移植なのでそのまま残し、
+ * 確定 UI 側の選択肢を templates.demo.ts に置いて、ここで連結する。
+ * 検索・検証（requireTemplate）は両方を対象にする。
+ */
+const ALL_TEMPLATES: readonly Template[] = Object.freeze([...TEMPLATES, ...DEMO_TEMPLATES]);
+
+const BY_ID = new Map(ALL_TEMPLATES.map((t) => [t.id, t]));
 
 export function findTemplate(id: string): Template | undefined {
   return BY_ID.get(id);
@@ -337,10 +348,10 @@ export function requireTemplate(id: string): Template {
 }
 
 export function templatesForCategory(categoryId: CategoryId): readonly Template[] {
-  return TEMPLATES.filter((t) => t.categoryId === categoryId);
+  return ALL_TEMPLATES.filter((t) => t.categoryId === categoryId);
 }
 
 /** 指示テンプレート一式（S-11 の拒否率計測で全テンプレートを通すために使う）。 */
 export function allTemplateIds(): readonly string[] {
-  return TEMPLATES.map((t) => t.id);
+  return ALL_TEMPLATES.map((t) => t.id);
 }

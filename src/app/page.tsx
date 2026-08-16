@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildCatalog } from "@/lib/catalog";
-import { Studio } from "@/components/Studio";
+import { AppShell } from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export default async function HomePage() {
     .filter(Boolean);
 
   return (
-    <Studio
+    <AppShell
       catalog={buildCatalog()}
       email={user.email ?? ""}
       isAdmin={admins.includes((user.email ?? "").toLowerCase())}

@@ -165,12 +165,28 @@ export function buildPrompt(spec: PromptSpec): BuiltPrompt {
   );
 
   const makeupInput = spec.categories.makeup;
+
+  // ★ デモ環境での変更点（PoC からの差分）。
+  //
+  //   PoC はここでメイクのテンプレート ID を拒否していた。
+  //   「指示内容は makeupStrength で決まるので、受け取っても使えない」という理由である。
+  //
+  //   ところが確定 UI（index.html）のメイクカードには
+  //   テンプレート選択（ナチュラル美肌／華やかパーティー／韓国風）と
+  //   「弱・中・強 各 2 枚」の自動生成が **両方** ある。
+  //   つまり確定仕様では、強度とスタイルは別の軸である。
+  //
+  //   そこで拒否をやめ、強度の指示のあとにスタイルの指示を重ねる。
+  //   強度（どれくらい濃いか）→ スタイル（どういう方向性か）の順。
   if (makeupInput?.templateId !== undefined) {
-    // メイクの指示は makeupStrength で決まる。テンプレート ID を受け取っても使わないので、
-    // 「指定したのに効いていない」状態を作らないために明示的に拒否する。
-    throw new PromptSpecError(
-      "メイクにテンプレート ID は指定できません（指示内容は makeupStrength で決まります）。",
-    );
+    const template = requireTemplate(makeupInput.templateId);
+    if (template.categoryId !== "makeup") {
+      throw new PromptSpecError(
+        `テンプレート ${template.id} はカテゴリ ${template.categoryId} 用です（指定: makeup）。`,
+      );
+    }
+    lines.push(template.instruction);
+    notes.push(`メイクの方向性: ${template.noteJa}`);
   }
   if (makeupInput?.freeText) {
     lines.push(`Additional makeup note: ${makeupInput.freeText}`);

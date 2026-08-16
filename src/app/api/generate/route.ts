@@ -1,105 +1,108 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeMask, prepareSource, sharpMaskCodec } from "@/lib/mask";
-import { DEMO_RESOLUTION, MAX_UPLOAD_BYTES, OPENAI_CONFIG, PER_CALL_TIMEOUT_MS } from "@/lib/models";
-import { OpenAIProvider, pixelsOf } from "@/lib/vendor/providers/openai";
-import { classifyError } from "@/lib/vendor/providers/errors";
-import { estimateCost } from "@/lib/vendor/providers/pricing";
-import { buildPrompt, type CategoryInput } from "@/lib/vendor/prompts/build";
+import { normalizeMask, prepareSource } from "@/lib/mask";
+import { MAX_UPLOAD_BYTES, OPENAI_CONFIG } from "@/lib/models";
 import {
-  isCategoryId,
-  MAKEUP_STRENGTHS,
-  PROCESS_KIND,
-  type CategoryId,
-  type MakeupStrength,
-} from "@/lib/vendor/prompts/categories";
+  buildSlotPrompt,
+  buildSlotSpecs,
+  estimateOne,
+  processJob,
+  type Selection,
+} from "@/lib/generate";
+import type { CategoryInput } from "@/lib/vendor/prompts/build";
+import { isCategoryId, PROCESS_KIND, type CategoryId } from "@/lib/vendor/prompts/categories";
 import { requireTemplate } from "@/lib/vendor/prompts/templates";
+import type { VariantStrategy } from "@/lib/vendor/prompts/variants";
 
 /**
- * 生成の唯一の入口。
+ * 生成の唯一の入口（確定 UI の STEP 3「ドラフト6枚を生成」）。
  *
- * ★ 呼び出しの流れは PoC の CLI（executeRun）と同じ順序を保っている：
- *     入力の検証 → プロンプト構築 → 上限の確認 → 1 回だけ呼ぶ → 記録
- *   再試行・フォールバックは実装しない（PoC 実装指示書 4 章）。
- *   1 回呼んで失敗したら、そのまま分類して記録し、利用者へ理由を返す。
+ * ★ ジョブを登録して jobId をすぐ返し、生成そのものは応答後に続ける。
+ *   確定 UI が「非同期ジョブ・できたものからスロットへ反映」を前提にしているため、
+ *   6 枚そろうまで応答を待たせる作りにはできない。
+ *   画面は /api/jobs/[id] をポーリングしてスロットを埋める。
  *
- * ★ 上限の確認は reserve_generation（DB 側）が行う。
- *   Vercel は関数ごとにプロセスが分かれるため、プロセス内のカウンタでは
- *   同時アクセス時に上限を守れない。行ロックのある DB へ寄せてある。
+ * ★ 上限の確認（reserve_generation）は 6 枚まとめて行う。
+ *   1 枚ずつだと、途中で予算が尽きて「3 枚だけ出来たジョブ」が生まれる。
  */
 
-// gpt-image-2 は 1 枚で 1 分を超えることがある。Vercel の関数上限まで引き上げる。
 export const maxDuration = 300;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ParsedRequest = {
-  makeupStrength: MakeupStrength;
-  categories: Partial<Record<CategoryId, CategoryInput>>;
-  templateIds: Record<string, string>;
+/** 自由テキストの上限。確定 UI の入力欄に合わせて受け付けるが、長文は通さない。 */
+const FREE_TEXT_MAX = 200;
+
+type ParsedSelection = Selection & {
   categoryIds: CategoryId[];
-  requiresMask: boolean;
+  templateIds: Record<string, string>;
+  freeTexts: Record<string, string>;
+  removalType: string | null;
 };
 
-/** 画面から来た選択を、プロンプト構築が受け取れる形へ検証しながら組み替える。 */
-function parseSelection(raw: unknown): ParsedRequest {
-  if (typeof raw !== "object" || raw === null) {
-    throw new Error("選択内容を読み取れませんでした。");
-  }
+function parseSelection(raw: unknown, variantStrategy: VariantStrategy): ParsedSelection {
+  if (typeof raw !== "object" || raw === null) throw new Error("選択内容を読み取れませんでした。");
   const body = raw as Record<string, unknown>;
 
-  const makeupStrength = body.makeupStrength;
-  if (
-    typeof makeupStrength !== "string" ||
-    !(MAKEUP_STRENGTHS as readonly string[]).includes(makeupStrength)
-  ) {
-    throw new Error("メイクの強さを選んでください（弱・中・強）。");
-  }
-
-  // メイクは必須カテゴリ（機能仕様書 2.2.1）。指示内容は強度で決まるので templateId は渡さない。
-  const categories: Partial<Record<CategoryId, CategoryInput>> = {
-    makeup: { referenceCount: 0 },
-  };
+  const categories: Partial<Record<CategoryId, CategoryInput>> = {};
   const templateIds: Record<string, string> = {};
+  const freeTexts: Record<string, string> = {};
 
-  const selected = body.selections;
-  if (selected !== undefined && !Array.isArray(selected)) {
+  const entries = body.selections;
+  if (entries !== undefined && !Array.isArray(entries)) {
     throw new Error("選択内容の形式が不正です。");
   }
 
-  for (const entry of (selected ?? []) as unknown[]) {
+  for (const entry of (entries ?? []) as unknown[]) {
     if (typeof entry !== "object" || entry === null) continue;
-    const { categoryId, templateId } = entry as Record<string, unknown>;
+    const { categoryId, templateId, freeText } = entry as Record<string, unknown>;
 
     if (typeof categoryId !== "string" || !isCategoryId(categoryId)) {
       throw new Error(`知らないカテゴリです: ${String(categoryId)}`);
     }
-    if (categoryId === "makeup") continue;
-    if (typeof templateId !== "string") {
-      throw new Error(`テンプレートを選んでください: ${categoryId}`);
+
+    const input: { templateId?: string; freeText?: string; referenceCount: number } = {
+      referenceCount: 0,
+    };
+
+    if (typeof templateId === "string" && templateId.length > 0) {
+      // 凍結済みカタログに無い ID はここで落ちる。
+      const template = requireTemplate(templateId);
+      if (template.categoryId !== categoryId) {
+        throw new Error(`テンプレート ${templateId} は ${categoryId} 用ではありません。`);
+      }
+      input.templateId = templateId;
+      templateIds[categoryId] = templateId;
     }
 
-    // ★ 自由入力は受け付けない（禁止事項②）。
-    //   requireTemplate は凍結済みカタログに無い ID で必ず落ちる。
-    const template = requireTemplate(templateId);
-    if (template.categoryId !== categoryId) {
-      throw new Error(`テンプレート ${templateId} は ${categoryId} 用ではありません。`);
+    if (typeof freeText === "string" && freeText.trim().length > 0) {
+      const text = freeText.trim().slice(0, FREE_TEXT_MAX);
+      input.freeText = text;
+      freeTexts[categoryId] = text;
     }
 
-    categories[categoryId] = { templateId, referenceCount: 0 };
-    templateIds[categoryId] = templateId;
+    // メイク以外はテンプレート必須（buildPrompt が要求する）。
+    if (categoryId !== "makeup" && input.templateId === undefined) {
+      throw new Error(`テンプレートを選んでください（${categoryId}）。`);
+    }
+
+    categories[categoryId] = input;
   }
 
+  // メイクは必須カテゴリ。カードが送られてこなくても有効にする（機能仕様書 2.2.1）。
+  if (categories.makeup === undefined) categories.makeup = { referenceCount: 0 };
+
   const categoryIds = Object.keys(categories) as CategoryId[];
-  const requiresMask = categoryIds.some((id) => PROCESS_KIND[id] === "C");
 
   return {
-    makeupStrength: makeupStrength as MakeupStrength,
     categories,
-    templateIds,
+    variantStrategy,
+    requiresMask: categoryIds.some((id) => PROCESS_KIND[id] === "C"),
     categoryIds,
-    requiresMask,
+    templateIds,
+    freeTexts,
+    removalType: typeof body.removalType === "string" ? body.removalType : null,
   };
 }
 
@@ -108,14 +111,12 @@ function fail(status: number, message: string, extra: Record<string, unknown> = 
 }
 
 export async function POST(request: Request) {
-  // ── ① 本人確認 ──
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return fail(401, "ログインしてください。");
 
-  // ── ② 入力の受け取り ──
   let form: FormData;
   try {
     form = await request.formData();
@@ -123,9 +124,10 @@ export async function POST(request: Request) {
     return fail(400, "アップロードを読み取れませんでした。");
   }
 
+  // ── STEP 1：元画像 ──
   const sourceFile = form.get("source");
   if (!(sourceFile instanceof File)) {
-    return fail(400, "写真を選んでください。");
+    return fail(400, "STEP 1 でキャストの元画像をアップロードしてください。");
   }
   if (sourceFile.size > MAX_UPLOAD_BYTES) {
     return fail(
@@ -134,9 +136,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // ★ 権利の同意。PoC 側はマニフェストの rights がこれを担保していた。
-  //   任意画像を受け付けるこちらでは、アップロードする人の申告が唯一の担保になる。
-  //   同意していない要求はここで止め、API へは一切送らない。
+  // ★ 権利の同意。任意画像を受け付ける以上、これが唯一の担保になる。
+  //   PoC 側はマニフェストの rights がこれを担っていた（指示書 3.2）。
   if (form.get("rightsConfirmed") !== "true") {
     return fail(
       400,
@@ -144,14 +145,39 @@ export async function POST(request: Request) {
     );
   }
 
-  let selection: ParsedRequest;
+  // ── STEP 0：店舗・キャスト ──
+  const storeName = String(form.get("storeName") ?? "").trim();
+  const castName = String(form.get("castName") ?? "").trim();
+  if (!storeName) return fail(400, "STEP 0 の店舗名が未入力です。画像整理のため店舗を選択してください。");
+  if (!castName) return fail(400, "STEP 0 のキャスト名が未入力です。画像整理のためキャスト名を選択してください。");
+
+  let admin: ReturnType<typeof createAdminClient>;
   try {
-    selection = parseSelection(JSON.parse(String(form.get("selection") ?? "{}")));
+    admin = createAdminClient();
+  } catch (error) {
+    return fail(500, error instanceof Error ? error.message : "サーバー側の設定が未完了です。");
+  }
+
+  // 作り分け方（案 1 / 案 2）は設定側が持つ。
+  const { data: limits } = await admin
+    .from("demo_limits")
+    .select("images_per_job, variant_strategy")
+    .eq("id", true)
+    .single();
+
+  const variantStrategy = (limits?.variant_strategy ?? "micro_delta") as VariantStrategy;
+
+  let selection: ParsedSelection;
+  try {
+    selection = parseSelection(
+      JSON.parse(String(form.get("selection") ?? "{}")),
+      variantStrategy,
+    );
   } catch (error) {
     return fail(400, error instanceof Error ? error.message : "選択内容が不正です。");
   }
 
-  // ── ③ 画像とマスクの下ごしらえ ──
+  // ── 画像とマスク ──
   let sourcePng: Buffer;
   try {
     sourcePng = await prepareSource(Buffer.from(await sourceFile.arrayBuffer()));
@@ -163,19 +189,18 @@ export async function POST(request: Request) {
   if (selection.requiresMask) {
     const maskFile = form.get("mask");
     if (!(maskFile instanceof File)) {
-      return fail(400, "消したい範囲をブラシで塗ってください。");
+      return fail(
+        400,
+        "タトゥー・不要物除去が有効ですが、マスクが未指定です。元画像上で除去範囲をブラシで塗るか、カードを無効化してください。",
+      );
     }
     try {
-      const normalized = await normalizeMask(
-        Buffer.from(await maskFile.arrayBuffer()),
-        sourcePng,
-      );
+      const normalized = await normalizeMask(Buffer.from(await maskFile.arrayBuffer()), sourcePng);
       if (normalized.paintedRatio <= 0) {
-        return fail(400, "塗られた範囲がありません。消したい部分をブラシでなぞってください。");
+        return fail(400, "塗られた範囲がありません。除去したい箇所をブラシで塗ってください。");
       }
       if (normalized.paintedRatio > 0.6) {
-        // 画面のほとんどを塗ると「局所修復」ではなく作り直しになる。
-        return fail(400, "塗った範囲が広すぎます。消したい部分だけを塗ってください。");
+        return fail(400, "塗った範囲が広すぎます。除去したい箇所だけを塗ってください。");
       }
       maskPng = normalized.mask;
     } catch (error) {
@@ -183,51 +208,29 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── ④ プロンプト構築（凍結済みテンプレートのみ） ──
-  let built;
+  // ── プロンプトが組めることを、上限を消費する前に確かめる ──
+  const slots = buildSlotSpecs().slice(0, limits?.images_per_job ?? 6);
+  let builtHashes: string[];
+  let templateVersion: string;
   try {
-    built = buildPrompt({
-      categories: selection.categories,
-      makeupStrength: selection.makeupStrength,
-      variant: 1,
-      variantStrategy: "identical",
-    });
+    const built = slots.map((spec) => buildSlotPrompt(selection, spec));
+    builtHashes = built.map((b) => b.hash);
+    templateVersion = built[0]!.templateVersion;
   } catch (error) {
     return fail(400, error instanceof Error ? error.message : "プロンプトを組み立てられません。");
   }
 
-  const mode = selection.requiresMask ? "inpaint" : "instruct";
-  const setting = OPENAI_CONFIG.resolution[DEMO_RESOLUTION];
+  const perImageUsd = estimateOne(selection.requiresMask);
+  const reservedCostUsd = Number((perImageUsd * slots.length).toFixed(6));
 
-  const estimatedCostUsd = estimateCost({
-    provider: "openai",
-    modelId: OPENAI_CONFIG.modelId,
-    mode,
-    resolution: DEMO_RESOLUTION,
-    outputPixels: pixelsOf(setting.size),
-    quality: setting.quality,
-    referenceCount: 0,
-  });
-
-  // ── ⑤ 上限の確認（ここを通らない生成経路を作ってはならない） ──
-  //
-  // 特権クライアントはここで初めて作る。入力の検証より先に作ると、
-  // 設定漏れ（service_role キー未設定）のときに「写真を選んでください」ではなく
-  // 500 が返り、利用者には何が悪いのか分からなくなる。
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch (error) {
-    return fail(500, error instanceof Error ? error.message : "サーバー側の設定が未完了です。");
-  }
-
+  // ── 上限の確認（6 枚まとめて） ──
   const { data: reservation, error: reserveError } = await admin.rpc("reserve_generation", {
     p_user: user.id,
-    p_est_cost: estimatedCostUsd,
+    p_est_cost: reservedCostUsd,
+    p_count: slots.length,
   });
-  if (reserveError) {
-    return fail(500, `上限の確認に失敗しました: ${reserveError.message}`);
-  }
+  if (reserveError) return fail(500, `上限の確認に失敗しました: ${reserveError.message}`);
+
   const reserved = reservation as {
     ok: boolean;
     reason?: string;
@@ -244,27 +247,27 @@ export async function POST(request: Request) {
   }
 
   const usageDay = reserved.day!;
-  const stamp = `${user.id}/${Date.now()}`;
-  const sourcePath = `${stamp}/source.png`;
-  const maskPath = maskPng ? `${stamp}/mask.png` : null;
-  const resultPath = `${stamp}/result.png`;
 
-  // ── ⑥ 記録を先に作る（呼び出す前に残す。落ちても「何を投げたか」が残るように） ──
+  // ── 記録を先に作る（呼び出す前に「何を投げたか」を残す） ──
   const { data: job, error: jobError } = await admin
     .from("jobs")
     .insert({
       user_id: user.id,
-      status: "running",
-      scenario_id: mode === "inpaint" ? "D-MASK" : "D-INSTRUCT",
+      status: "queued",
+      scenario_id: selection.requiresMask ? "D-MASK" : "D-INSTRUCT",
       category_ids: selection.categoryIds,
-      makeup_strength: selection.makeupStrength,
       template_ids: selection.templateIds,
-      prompt_hash: built.hash,
-      template_version: built.templateVersion,
+      free_texts: selection.freeTexts,
+      removal_type: selection.removalType,
+      template_version: templateVersion,
       model_name: OPENAI_CONFIG.modelId,
-      source_path: sourcePath,
-      mask_path: maskPath,
-      estimated_cost_usd: estimatedCostUsd,
+      store_name: storeName,
+      cast_name: castName,
+      session_title: String(form.get("sessionTitle") ?? "").trim() || null,
+      image_count: slots.length,
+      source_path: "",
+      mask_path: null,
+      estimated_cost_usd: reservedCostUsd,
       rights_confirmed: true,
       usage_day: usageDay,
     })
@@ -272,149 +275,80 @@ export async function POST(request: Request) {
     .single();
 
   if (jobError || !job) {
-    // 予約を戻してから返す。戻さないと押しただけで枠が減る。
     await admin.rpc("settle_generation", {
       p_user: user.id,
       p_day: usageDay,
-      p_est_cost: estimatedCostUsd,
+      p_est_cost: reservedCostUsd,
       p_actual_cost: 0,
-      p_refund_image: true,
+      p_refund_images: slots.length,
     });
     return fail(500, `記録を作成できませんでした: ${jobError?.message ?? "不明"}`);
   }
 
-  await admin.storage.from("sources").upload(sourcePath, sourcePng, {
-    contentType: "image/png",
-    upsert: true,
-  });
+  const sourcePath = `${user.id}/${job.id}/source.png`;
+  const maskPath = maskPng ? `${user.id}/${job.id}/mask.png` : null;
+
+  await admin.storage
+    .from("sources")
+    .upload(sourcePath, sourcePng, { contentType: "image/png", upsert: true });
   if (maskPng && maskPath) {
-    await admin.storage.from("sources").upload(maskPath, maskPng, {
-      contentType: "image/png",
-      upsert: true,
-    });
+    await admin.storage
+      .from("sources")
+      .upload(maskPath, maskPng, { contentType: "image/png", upsert: true });
   }
 
-  // ── ⑦ 1 回だけ呼ぶ ──
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    await admin.rpc("settle_generation", {
-      p_user: user.id,
-      p_day: usageDay,
-      p_est_cost: estimatedCostUsd,
-      p_actual_cost: 0,
-      p_refund_image: true,
-    });
-    await admin
-      .from("jobs")
-      .update({
-        status: "failed",
-        error_kind: "infra",
-        error_message: "OPENAI_API_KEY が設定されていません",
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", job.id);
-    return fail(500, "サーバー側の設定が未完了です（API キー未設定）。管理者へ連絡してください。");
-  }
+  await admin
+    .from("jobs")
+    .update({ source_path: sourcePath, mask_path: maskPath, status: "running" })
+    .eq("id", job.id);
 
-  const provider = new OpenAIProvider(OPENAI_CONFIG, apiKey, sharpMaskCodec);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PER_CALL_TIMEOUT_MS);
+  await admin.from("job_images").insert(
+    slots.map((spec, index) => ({
+      job_id: job.id,
+      slot: spec.slot,
+      makeup_strength: spec.makeupStrength,
+      variant: spec.variant,
+      variant_strategy: variantStrategy,
+      prompt_hash: builtHashes[index]!,
+      status: "queued" as const,
+    })),
+  );
 
-  try {
-    const result = await provider.edit(
-      {
-        mode,
-        baseImage: new Uint8Array(sourcePng),
-        maskImage: maskPng ? new Uint8Array(maskPng) : undefined,
-        prompt: built.text,
-        resolution: DEMO_RESOLUTION,
-        variantSeedHint: built.variantSeedHint,
-      },
-      controller.signal,
-    );
-
-    await admin.storage.from("results").upload(resultPath, Buffer.from(result.image), {
-      contentType: "image/png",
-      upsert: true,
-    });
-
-    await admin
-      .from("jobs")
-      .update({
-        status: "succeeded",
-        result_path: resultPath,
-        actual_cost_usd: result.estimatedCostUsd,
-        latency_ms: result.latencyMs,
-        model_name: result.modelName,
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", job.id);
-
-    // 見積で引いた分を実額へ差し替える。
-    await admin.rpc("settle_generation", {
-      p_user: user.id,
-      p_day: usageDay,
-      p_est_cost: estimatedCostUsd,
-      p_actual_cost: result.estimatedCostUsd,
-      p_refund_image: false,
-    });
-
-    const [sourceUrl, resultUrl] = await Promise.all([
-      admin.storage.from("sources").createSignedUrl(sourcePath, 3600),
-      admin.storage.from("results").createSignedUrl(resultPath, 3600),
-    ]);
-
-    return NextResponse.json({
-      ok: true,
-      jobId: job.id,
-      sourceUrl: sourceUrl.data?.signedUrl ?? null,
-      resultUrl: resultUrl.data?.signedUrl ?? null,
-      latencyMs: result.latencyMs,
-      costUsd: result.estimatedCostUsd,
-      remainingUserImages: reserved.remaining_user_images ?? null,
-      noteJa: built.noteJa,
-    });
-  } catch (error) {
-    const classified = classifyError(error);
-
-    // ★ 枚数を返すのはインフラ障害のときだけ。
-    //   policy 拒否・入力不備で返すと、拒否されるまで何度でも押せることになる
-    //   （禁止事項③「拒否された内容を文言を変えて再投入しない」の趣旨）。
-    await admin.rpc("settle_generation", {
-      p_user: user.id,
-      p_day: usageDay,
-      p_est_cost: estimatedCostUsd,
-      p_actual_cost: 0,
-      p_refund_image: classified.kind === "infra",
-    });
-
-    await admin
-      .from("jobs")
-      .update({
-        status: "failed",
-        error_kind: classified.kind,
-        error_message: `${classified.code}: ${classified.detail}`.slice(0, 2000),
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", job.id);
-
-    const messages: Record<string, string> = {
-      policy:
-        "この写真と指示の組み合わせは、OpenAI の安全性判定により拒否されました。別の写真で試してください。（同じ内容を言い換えて再投入することは、この環境では行いません）",
-      input: `送信内容に不備がありました: ${classified.detail}`,
-      infra: `生成に失敗しました（一時的な障害の可能性があります）: ${classified.detail}`,
-    };
-
-    return NextResponse.json(
-      {
-        ok: false,
+  // ── 応答を返したあとで 6 枚を作る ──
+  after(async () => {
+    try {
+      await processJob({
+        admin,
         jobId: job.id,
-        errorKind: classified.kind,
-        message: messages[classified.kind],
-      },
-      { status: classified.kind === "infra" ? 502 : 400 },
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
+        userId: user.id,
+        usageDay,
+        sourcePng,
+        maskPng,
+        selection,
+        slots,
+        reservedCostUsd,
+      });
+    } catch (error) {
+      // ここで落ちるとスロットが「待機中」のまま残る。理由を残しておく。
+      await admin
+        .from("job_images")
+        .update({
+          status: "failed",
+          error_kind: "infra",
+          error_message: error instanceof Error ? error.message : String(error),
+          finished_at: new Date().toISOString(),
+        })
+        .eq("job_id", job.id)
+        .in("status", ["queued", "running"]);
+      await admin.from("jobs").update({ status: "failed" }).eq("id", job.id);
+    }
+  });
+
+  return NextResponse.json({
+    ok: true,
+    jobId: job.id,
+    imageCount: slots.length,
+    estimatedCostUsd: reservedCostUsd,
+    remainingUserImages: reserved.remaining_user_images ?? null,
+  });
 }
