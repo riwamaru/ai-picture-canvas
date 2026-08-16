@@ -1,0 +1,11 @@
+node_modules
+.next
+.vercel
+.DS_Store
+next-env.d.ts
+*.tsbuildinfo
+
+# --- 資格情報（PoC 実装指示書 2 章 禁止事項④の趣旨をこちらにも適用する） ---
+.env
+.env.*
+!.env.example
