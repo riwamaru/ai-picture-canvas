@@ -18,6 +18,9 @@ type Slot = {
   makeupStrength: MakeupStrength;
   variant: number;
   status: "queued" | "running" | "succeeded" | "failed";
+  provider: "openai" | "google" | null;
+  attemptedProvider: "openai" | "google" | null;
+  attemptedErrorKind: string | null;
   latencyMs: number | null;
   costUsd: number | null;
   errorKind: string | null;
@@ -64,6 +67,13 @@ export function AppShell({
   const router = useRouter();
   const maskRef = useRef<MaskHandle>(null);
 
+  // ── モード（通常加工 / 除去専用） ──
+  //
+  // ★ 確定 UI では除去は STEP 2 のカードの 1 つだったが、コーナーとして独立させた。
+  //   マスクを入力できるのは OpenAI だけで Google へフォールバックできず、
+  //   通常加工と同じ導線に置くと「他と同じように動くはず」という誤解を生むため。
+  const [mode, setMode] = useState<"normal" | "removal">("normal");
+
   // ── STEP 0 ──
   const [storeName, setStoreName] = useState("");
   const [castName, setCastName] = useState("");
@@ -106,7 +116,8 @@ export function AppShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const removalOn = enabled.tattoo_removal === true;
+  // 除去コーナーでは常にマスクが要る。通常加工では除去カードを出さない。
+  const removalOn = mode === "removal";
   const jobRunning = registering || slots.some((s) => s.status === "queued" || s.status === "running");
 
   // ── セッション情報（当月の利用状況・履歴） ──
@@ -184,6 +195,140 @@ export function AppShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  /** モードを切り替える。作りかけの結果を持ち越さない。 */
+  function switchMode(next: "normal" | "removal") {
+    if (next === mode || jobRunning) return;
+    setMode(next);
+    setJobId(null);
+    setSlots([]);
+    setSelectedSlot(null);
+    setGateMessage(null);
+    setModerationWarning(null);
+    setMaskStrokes(0);
+    maskRef.current?.clear();
+  }
+
+  const removalCategory = catalog.categories.find((c) => c.id === "tattoo_removal");
+
+  /**
+   * タトゥー・不要物除去のコーナー。
+   *
+   * ★ 確定 UI では STEP 2 のカードの 1 つだったが、独立させた理由：
+   *   マスク画像を入力できるのは OpenAI だけで、Google へフォールバックできない。
+   *   通常加工と同じ導線に置くと「他と同じように動くはず」という誤解を生む。
+   *   さらに PoC の実測（2026-08-16）では、その OpenAI が素材を全件拒否している。
+   */
+  //
+  // ★ ここを function RemovalPanel() { ... } として定義してはならない。
+  //   AppShell が再描画されるたびに別の関数になり、React が
+  //   「別のコンポーネント」と判断して中身を作り直す。
+  //   その結果 MaskTool が再マウントされ、塗ったマスクが毎回消える。
+  //   JSX の値として持つことで、同一要素として扱われる。
+  const removalPanel = !removalCategory ? null : (
+      <div className="card enabled" data-category="タトゥー・不要物除去">
+        <div className="card-title">
+          <span
+            className="cat-letter"
+            style={{
+              background: "rgba(245,158,11,0.1)",
+              color: "var(--type-c)",
+              borderColor: "rgba(245,158,11,0.22)",
+            }}
+          >
+            除
+          </span>{" "}
+          タトゥー・不要物除去
+          <span className="type-badge type-c">種別C マスク局所修復</span>
+          <span className="required-tag">OpenAI 専用</span>
+        </div>
+
+        <div className="card-body">
+          <div className="card-grid-fields">
+            <div
+              className="make-notice"
+              style={{
+                background: "linear-gradient(135deg, rgba(245,158,11,0.06), rgba(244,63,94,0.05))",
+                borderColor: "rgba(245,158,11,0.2)",
+              }}
+            >
+              <i className="fa-solid fa-eraser" style={{ color: "var(--type-c)" }} />
+              <div>
+                参考画像は使用せず、<strong>元画像上でブラシを塗って除去範囲（マスク）を指定</strong>
+                してください。マスク領域のみをインペインティング修復し、
+                <strong>マスク外は一切変更しません</strong>（F-15）。
+                メイクなど他の加工は行いません（1 回につき 1 枚）。
+              </div>
+            </div>
+
+            <div className="gate-note">
+              <i className="fa-solid fa-triangle-exclamation" />
+              <span>
+                マスク画像を入力できるのは OpenAI だけで、Google（Gemini）へは回せません。
+                PoC の実測（2026-08-16）では、その OpenAI がこの種の素材を全件拒否しています。
+                <strong>拒否される可能性が高いことを承知のうえでお試しください。</strong>
+                拒否は課金されず、実測データとして記録されます。
+              </span>
+            </div>
+
+            <MaskTool
+              imageUrl={previewUrl}
+              handleRef={maskRef}
+              onStrokesChange={setMaskStrokes}
+            />
+            <div className="mask-coverage">
+              <span className="dot" />{" "}
+              {maskStrokes === 0
+                ? "マスク未指定 — 除去したい箇所をブラシで塗ってください"
+                : `マスク指定済み：${maskStrokes} ストローク（マスク領域のみ修復し、マスク外は変更しません）`}
+            </div>
+
+            <div className="input-group">
+              <label>除去対象の種類</label>
+              <select
+                className="tpl-select"
+                value={templateIds.tattoo_removal ?? ""}
+                onChange={(e) =>
+                  setTemplateIds((c) => ({ ...c, tattoo_removal: e.target.value }))
+                }
+              >
+                <option value="">選択してください（未選択）</option>
+                {removalCategory.templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.labelJa}
+                  </option>
+                ))}
+              </select>
+              {templateIds.tattoo_removal && (
+                <div className="setting-note" style={{ marginTop: 6 }}>
+                  <i className="fa-solid fa-circle-info" />{" "}
+                  {
+                    removalCategory.templates.find((t) => t.id === templateIds.tattoo_removal)
+                      ?.noteJa
+                  }
+                </div>
+              )}
+            </div>
+
+            <div className="input-group">
+              <label>
+                補足メモ<span className="recommend-tag">任意</span>
+              </label>
+              <input
+                type="text"
+                className="free-text"
+                maxLength={200}
+                placeholder={removalCategory.freeTextPlaceholder}
+                value={freeTexts.tattoo_removal ?? ""}
+                onChange={(e) =>
+                  setFreeTexts((c) => ({ ...c, tattoo_removal: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+  );
+
   function pushChat(role: "assistant" | "user" | "warn", text: string) {
     setChat((current) => [...current, { role, text }]);
   }
@@ -202,9 +347,24 @@ export function AppShell({
         ? " タトゥー除去はマスク領域のみをインペインティング修復しています（マスク外は不変）。"
         : "";
 
-    let text = `メイク強度「弱・中・強」各2枚、計${finished.length}枚のドラフト候補（1K）を生成しました。成功 ${ok} 枚。反映レイヤー：${activeCats.join("・")}。${removal}`;
+    // OpenAI が拒否して Google が引き受けた枚数（フォールバックの実績）
+    const fellBack = finished.filter(
+      (s) => s.status === "succeeded" && s.attemptedProvider !== null,
+    ).length;
+
+    let text =
+      mode === "removal"
+        ? `マスク領域のみのインペインティング修復を ${finished.length} 枚実行しました。成功 ${ok} 枚。マスク外は変更していません。`
+        : `メイク強度「弱・中・強」各2枚、計${finished.length}枚のドラフト候補（1K）を生成しました。成功 ${ok} 枚。反映レイヤー：${activeCats.join("・")}。${removal}`;
+
+    if (fellBack > 0) {
+      text += ` うち ${fellBack} 枚は OpenAI が拒否したため Google（Gemini）で生成しています。`;
+    }
     if (policy > 0) {
-      text += ` ${policy} 枚は安全性判定により拒否されました。文言を変えた再投入は行いません（拒否は記録に残ります）。`;
+      text +=
+        mode === "removal"
+          ? ` ${policy} 枚は安全性判定により拒否されました。除去はマスクを入力できる OpenAI 専用のため、Google へ回すことができません。`
+          : ` ${policy} 枚は安全性判定により拒否されました。文言を変えた再投入は行いません（拒否は記録に残ります）。`;
       setModerationWarning(
         "⚠️ 一部の候補が安全性判定により拒否されました。別の写真、または別のテンプレートでお試しください。",
       );
@@ -232,9 +392,11 @@ export function AppShell({
       return;
     }
     if (removalOn && maskStrokes === 0) {
-      setGateMessage(
-        "タトゥー・不要物除去が有効ですが、マスクが未指定です。元画像上で除去範囲をブラシで塗るか、カードを無効化してください。",
-      );
+      setGateMessage("マスクが未指定です。元画像上で除去したい範囲をブラシで塗ってください。");
+      return;
+    }
+    if (removalOn && !templateIds.tattoo_removal) {
+      setGateMessage("除去対象の種類を選んでください。");
       return;
     }
     if (!rights) {
@@ -253,13 +415,28 @@ export function AppShell({
     form.set("castName", castName.trim());
     form.set("sessionTitle", sessionTitle);
 
-    const selections = catalog.categories
-      .filter((c) => c.id === "makeup" || enabled[c.id])
-      .map((c) => ({
-        categoryId: c.id,
-        templateId: templateIds[c.id] ?? "",
-        freeText: freeTexts[c.id] ?? "",
-      }));
+    form.set("jobMode", mode);
+
+    // 除去コーナーではメイクを送らない。
+    // inpaint はマスク領域の中身を作り直す処理なので、
+    // 「メイクを変えろ」を混ぜると指示が破綻する。
+    const selections =
+      mode === "removal"
+        ? [
+            {
+              categoryId: "tattoo_removal",
+              templateId: templateIds.tattoo_removal ?? "",
+              freeText: freeTexts.tattoo_removal ?? "",
+            },
+          ]
+        : catalog.categories
+            .filter((c) => c.id !== "tattoo_removal" && (c.id === "makeup" || enabled[c.id]))
+            .map((c) => ({
+              categoryId: c.id,
+              templateId: templateIds[c.id] ?? "",
+              freeText: freeTexts[c.id] ?? "",
+            }));
+
     form.set(
       "selection",
       JSON.stringify({ selections, removalType: templateIds.tattoo_removal ?? null }),
@@ -492,6 +669,24 @@ export function AppShell({
             </div>
           </div>
 
+          {/* ── モード切替（確定 UI には無い。除去は経路が別なので分けている） ── */}
+          <div className="mode-tabs">
+            <button
+              type="button"
+              className={`mode-tab${mode === "normal" ? " active" : ""}`}
+              onClick={() => switchMode("normal")}
+            >
+              <i className="fa-solid fa-wand-magic-sparkles" /> 通常加工（メイク・背景・衣装ほか）
+            </button>
+            <button
+              type="button"
+              className={`mode-tab removal${mode === "removal" ? " active" : ""}`}
+              onClick={() => switchMode("removal")}
+            >
+              <i className="fa-solid fa-eraser" /> タトゥー・不要物除去
+            </button>
+          </div>
+
           {/* ── STEP 0 ── */}
           <div className="step-heading">
             <span className="step-num">STEP 0</span> 店舗・キャスト選択
@@ -647,7 +842,9 @@ export function AppShell({
 
             {previewUrl && (
               <div className="preview-container" style={{ display: "flex" }}>
-                <div className="preview-wrap">
+                {/* .preview-wrap は CSS で display:none。
+                    モックでは JS が実行時に block を入れていたので、ここで指定する。 */}
+                <div className="preview-wrap" style={{ display: "block" }}>
                   <span className="status-badge">
                     <i className="fa-solid fa-user-check" /> 読み込み完了
                   </span>
@@ -673,10 +870,18 @@ export function AppShell({
 
           {/* ── STEP 2 ── */}
           <div className="step-heading">
-            <span className="step-num">STEP 2</span> 加工カテゴリ設定（メイク以外は有効／無効を選択）
+            <span className="step-num">STEP 2</span>{" "}
+            {mode === "removal"
+              ? "除去範囲の指定（マスク描画）"
+              : "加工カテゴリ設定（メイク以外は有効／無効を選択）"}
           </div>
 
-          {catalog.categories.map((category) => {
+          {mode === "removal" && removalPanel}
+
+          {mode === "normal" &&
+            catalog.categories
+            .filter((category) => category.id !== "tattoo_removal")
+            .map((category) => {
             const on = category.required || enabled[category.id] === true;
             return (
               <div
@@ -749,39 +954,6 @@ export function AppShell({
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    {category.requiresMask && (
-                      <>
-                        <div
-                          className="make-notice"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, rgba(245,158,11,0.06), rgba(244,63,94,0.05))",
-                            borderColor: "rgba(245,158,11,0.2)",
-                          }}
-                        >
-                          <i className="fa-solid fa-eraser" style={{ color: "var(--type-c)" }} />
-                          <div>
-                            他カテゴリと処理方式が異なります。参考画像は使用せず、
-                            <strong>元画像上でブラシを塗って除去範囲（マスク）を指定</strong>
-                            してください。マスク領域のみをインペインティング修復し、
-                            <strong>マスク外は一切変更しません</strong>（F-15）。
-                          </div>
-                        </div>
-
-                        <MaskTool
-                          imageUrl={previewUrl}
-                          handleRef={maskRef}
-                          onStrokesChange={setMaskStrokes}
-                        />
-                        <div className="mask-coverage">
-                          <span className="dot" />{" "}
-                          {maskStrokes === 0
-                            ? "マスク未指定 — 除去したい箇所をブラシで塗ってください"
-                            : `マスク指定済み：${maskStrokes} ストローク（マスク領域のみ修復し、マスク外は変更しません）`}
-                        </div>
-                      </>
                     )}
 
                     {category.acceptsReferences && (
@@ -868,7 +1040,11 @@ export function AppShell({
               <div className="generate-btn-wrapper">
                 <button className="generate-btn" onClick={executeGeneration} disabled={jobRunning}>
                   <i className="fa-solid fa-bolt" />{" "}
-                  {jobRunning ? "生成中…" : "ドラフト6枚を生成（非同期ジョブ）"}
+                  {jobRunning
+                    ? "生成中…"
+                    : mode === "removal"
+                      ? "除去を実行（1枚）"
+                      : "ドラフト6枚を生成（非同期ジョブ）"}
                 </button>
               </div>
 
@@ -909,7 +1085,8 @@ export function AppShell({
               <div style={{ marginTop: 4, position: "relative" }}>
                 <div className="results-header">
                   <h4>
-                    <i className="fa-regular fa-images" /> 生成候補（6枚 / 弱・中・強 各2枚）
+                    <i className="fa-regular fa-images" />{" "}
+                    {mode === "removal" ? "除去結果（1枚）" : "生成候補（6枚 / 弱・中・強 各2枚）"}
                   </h4>
                   {slots.length > 0 && (
                     <div className="job-progress" style={{ display: "flex" }}>
@@ -939,7 +1116,10 @@ export function AppShell({
                 <div className="results-grid">
                   {(slots.length > 0
                     ? slots
-                    : Array.from({ length: 6 }, (_, i) => null as Slot | null)
+                    : Array.from(
+                        { length: mode === "removal" ? 1 : 6 },
+                        () => null as Slot | null,
+                      )
                   ).map((slot, index) => {
                     if (!slot) {
                       return (
@@ -948,14 +1128,32 @@ export function AppShell({
                             <i className="fa-regular fa-image" style={{ fontSize: "1.1rem", opacity: 0.5 }} />
                             画像未生成
                             <span className="slot-strength">
-                              メイク {["弱", "弱", "中", "中", "強", "強"][index]}
+                              {mode === "removal"
+                                ? "マスク領域の修復"
+                                : `メイク ${["弱", "弱", "中", "中", "強", "強"][index]}`}
                             </span>
                           </div>
                         </div>
                       );
                     }
 
-                    const label = `${STRENGTH_LABEL[slot.makeupStrength]} - パターン${slot.variant === 1 ? "A" : "B"}`;
+                    const label =
+                      mode === "removal"
+                        ? "マスク領域の修復"
+                        : `${STRENGTH_LABEL[slot.makeupStrength]} - パターン${slot.variant === 1 ? "A" : "B"}`;
+
+                    // どのプロバイダが作ったか（フォールバックした場合は経緯も）
+                    const providerBadge = slot.provider ? (
+                      <span className={`provider-badge ${slot.provider}`}>
+                        {slot.provider === "openai" ? "OpenAI" : "Google"}
+                      </span>
+                    ) : null;
+                    const fallbackBadge = slot.attemptedProvider ? (
+                      <span className="provider-badge fallback" title="先に試して失敗したプロバイダ">
+                        {slot.attemptedProvider === "openai" ? "OpenAI" : "Google"}
+                        {slot.attemptedErrorKind === "policy" ? " 拒否" : " 失敗"} →
+                      </span>
+                    ) : null;
 
                     if (slot.status === "queued") {
                       return (
@@ -993,9 +1191,15 @@ export function AppShell({
                                 ? "送信内容に不備"
                                 : "生成に失敗しました"}
                             <span className="slot-strength">{label}</span>
+                            <span className="slot-providers">
+                              {fallbackBadge}
+                              {providerBadge}
+                            </span>
                             {slot.errorKind === "policy" && (
                               <span className="slot-reason">
-                                同じ内容を言い換えて再投入することはしません
+                                {mode === "removal"
+                                  ? "マスク編集は OpenAI 専用のため、Google へ回せません"
+                                  : "同じ内容を言い換えて再投入することはしません"}
                               </span>
                             )}
                           </div>
@@ -1013,6 +1217,8 @@ export function AppShell({
                         <img src={slot.url ?? ""} alt={label} />
                         <div className="result-actions">
                           <span className="result-badge">{label}</span>
+                          {fallbackBadge}
+                          {providerBadge}
                           <button
                             className="action-icon-btn"
                             title="ダウンロード"

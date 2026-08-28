@@ -109,8 +109,21 @@ export function buildPrompt(spec: PromptSpec): BuiltPrompt {
   // CATEGORY_IDS の宣言順で走査する。Object.keys の順序に依存させない。
   const enabled = CATEGORY_IDS.filter((id) => spec.categories[id] !== undefined);
 
-  if (!enabled.includes("makeup")) {
-    // 機能仕様書 2.2.1「メイクは必須カテゴリとし、弱・中・強の 3 段階それぞれについて 2 枚」
+  // ★ デモ環境での変更点②（PoC からの差分）。
+  //
+  //   PoC はメイクを常に必須としていた（機能仕様書 2.2.1
+  //   「メイクは必須カテゴリとし、弱・中・強の 3 段階それぞれについて 2 枚」）。
+  //   PoC の S-05（タトゥー除去）も categories に makeup を含めている。
+  //
+  //   しかしこれは inpaint では正しくない。マスク編集ではプロンプトが
+  //   **マスク領域の中身**を指示するため、肩のタトゥーを塗ったマスクに対して
+  //   「メイクを変えろ」と言うと指示が破綻する。
+  //
+  //   除去専用モード（tattoo_removal だけが有効）に限り、メイク必須を免除する。
+  //   それ以外は従来どおり必須のまま。
+  const removalOnly = enabled.length === 1 && enabled[0] === "tattoo_removal";
+
+  if (!enabled.includes("makeup") && !removalOnly) {
     throw new PromptSpecError("メイクは必須カテゴリです。categories.makeup を指定してください。");
   }
 
@@ -153,16 +166,18 @@ export function buildPrompt(spec: PromptSpec): BuiltPrompt {
   const lines: string[] = [];
   const notes: string[] = [];
 
-  // メイク（必須・強度指定）
-  const makeup = MAKEUP_STRENGTH_TEMPLATES[spec.makeupStrength];
-  lines.push(
-    `Task — change the makeup on this person's face. ` +
-      `The change must be clearly visible in the result: ${makeup.instruction}`,
-  );
-  notes.push(
-    `変更内容（メイク・${spec.makeupStrength}）: ${makeup.noteJa}` +
-      `／結果に変化がはっきり見えていること`,
-  );
+  // メイク（必須・強度指定）。除去専用モードでは出さない。
+  if (!removalOnly) {
+    const makeup = MAKEUP_STRENGTH_TEMPLATES[spec.makeupStrength];
+    lines.push(
+      `Task — change the makeup on this person's face. ` +
+        `The change must be clearly visible in the result: ${makeup.instruction}`,
+    );
+    notes.push(
+      `変更内容（メイク・${spec.makeupStrength}）: ${makeup.noteJa}` +
+        `／結果に変化がはっきり見えていること`,
+    );
+  }
 
   const makeupInput = spec.categories.makeup;
 

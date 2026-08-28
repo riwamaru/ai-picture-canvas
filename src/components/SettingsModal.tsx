@@ -24,6 +24,10 @@ type Limits = {
   default_user_max_images: number;
   images_per_job: number;
   variant_strategy: "identical" | "micro_delta";
+  fallback_enabled: boolean;
+  primary_provider: "openai" | "google";
+  fallback_provider: "openai" | "google";
+  fallback_on_policy: boolean;
 };
 
 type UserRow = {
@@ -223,8 +227,87 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </div>
           )}
           <div className="setting-note">
-            <i className="fa-solid fa-triangle-exclamation" /> 1 枚あたり約 $0.083（1024×1536・quality
-            medium）。6 枚 ＝ 1 回あたり約 $0.50 です。ここの値は表示だけでなく実際に効きます（上限に達すると生成を受け付けません）。
+            <i className="fa-solid fa-triangle-exclamation" /> 1 枚あたり OpenAI 約 $0.083
+            （1024×1536・quality medium）／ Google 約 $0.136。6 枚 ＝ 1 回あたり約 $0.50〜$0.82
+            です。予約は高いほうで押さえ、実額は生成後に差し替えます。ここの値は表示だけでなく実際に効きます
+            （上限に達すると生成を受け付けません）。
+          </div>
+
+          {/* ── プロバイダとフォールバック ── */}
+          <div className="settings-section-title">
+            画像生成プロバイダとフォールバック <span className="sec-badge">F-16</span>
+          </div>
+          {limits && (
+            <>
+              <div className="settings-grid-row">
+                <div className="setting-field">
+                  <label>先に試すプロバイダ</label>
+                  <select
+                    value={limits.primary_provider}
+                    onChange={(e) =>
+                      void patch({ primary_provider: e.target.value as Limits["primary_provider"] })
+                    }
+                  >
+                    <option value="openai">OpenAI gpt-image-2</option>
+                    <option value="google">Google gemini-3-pro-image</option>
+                  </select>
+                </div>
+                <div className="setting-field">
+                  <label>失敗したときに回す先</label>
+                  <select
+                    value={limits.fallback_provider}
+                    onChange={(e) =>
+                      void patch({
+                        fallback_provider: e.target.value as Limits["fallback_provider"],
+                      })
+                    }
+                  >
+                    <option value="google">Google gemini-3-pro-image</option>
+                    <option value="openai">OpenAI gpt-image-2</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-solid fa-shuffle" style={{ color: "var(--primary)" }} />{" "}
+                  フォールバックを有効にする
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.fallback_enabled}
+                    onChange={(e) => void patch({ fallback_enabled: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ color: "#d97706" }} />{" "}
+                  ポリシー拒否でもフォールバックする
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.fallback_on_policy}
+                    onChange={(e) => void patch({ fallback_on_policy: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+            </>
+          )}
+          <div className="setting-note">
+            <i className="fa-solid fa-circle-info" /> PoC の実測（2026-08-16 日報）では
+            <strong> OpenAI は 30 件すべてポリシー拒否</strong>され、Google は 35 件成功しています。
+            確定 UI は「障害系のみフォールバック・ポリシー起因は再投入しない」と書いていますが、
+            その規則ではフォールバックが一度も発動しないため、委託者判断でポリシー拒否も対象にしています。
+            禁止事項③が禁じるのは「文言を変えた再投入」であり、同一プロンプトを別ベンダーへ送ることは
+            これに当たりません。<strong>拒否は課金されない</strong>ため、追加費用も発生しません。
+            なお<strong>タトゥー除去はマスク入力が必要なため OpenAI 専用</strong>で、
+            フォールバック先がありません（Google はマスク画像を受け付けない）。
           </div>
 
           {/* ── 同一条件 2 枚の作り分け ── */}

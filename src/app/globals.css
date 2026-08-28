@@ -437,3 +437,39 @@
 
 /* 失敗したスロットの理由 */
 .slot-reason { font-size: 0.66rem; opacity: 0.85; margin-top: 3px; max-width: 92%; line-height: 1.5; }
+
+/* ============================================================
+   モード切替タブ（通常加工 / タトゥー・不要物除去）
+   確定 UI には無い。除去は Google へフォールバックできない
+   （マスク入力不可）ため、通常加工と経路を分ける必要がある。
+   ============================================================ */
+.mode-tabs {
+    display: flex; gap: 8px; padding: 6px;
+    background: var(--bg-input); border-radius: var(--radius-md);
+    border: 1px solid var(--border-glass);
+}
+.mode-tab {
+    flex: 1; padding: 10px 14px; border-radius: var(--radius-sm);
+    border: 1px solid transparent; background: transparent;
+    font-size: 0.82rem; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.mode-tab:hover { color: var(--text-main); }
+.mode-tab.active {
+    background: #ffffff; color: var(--text-main);
+    border-color: var(--border-glass); box-shadow: var(--shadow-sm);
+}
+.mode-tab.removal.active { color: var(--type-c); border-color: rgba(245,158,11,0.35); }
+
+/* プロバイダの表示（スロットのバッジ・結果の説明） */
+.provider-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.6rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid transparent; white-space: nowrap;
+}
+.provider-badge.openai { color: #0f766e; background: rgba(13,148,136,0.09); border-color: rgba(13,148,136,0.2); }
+.provider-badge.google { color: #6366f1; background: rgba(99,102,241,0.09); border-color: rgba(99,102,241,0.2); }
+.provider-badge.fallback { color: #b45309; background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); }
+
+.slot-providers { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; justify-content: center; }

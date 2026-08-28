@@ -6,8 +6,10 @@ import { MAX_UPLOAD_BYTES, OPENAI_CONFIG } from "@/lib/models";
 import {
   buildSlotPrompt,
   buildSlotSpecs,
-  estimateOne,
   processJob,
+  reservationUnitUsd,
+  type FallbackPolicy,
+  type JobMode,
   type Selection,
 } from "@/lib/generate";
 import type { CategoryInput } from "@/lib/vendor/prompts/build";
@@ -41,7 +43,11 @@ type ParsedSelection = Selection & {
   removalType: string | null;
 };
 
-function parseSelection(raw: unknown, variantStrategy: VariantStrategy): ParsedSelection {
+function parseSelection(
+  raw: unknown,
+  variantStrategy: VariantStrategy,
+  jobMode: JobMode,
+): ParsedSelection {
   if (typeof raw !== "object" || raw === null) throw new Error("選択内容を読み取れませんでした。");
   const body = raw as Record<string, unknown>;
 
@@ -91,7 +97,19 @@ function parseSelection(raw: unknown, variantStrategy: VariantStrategy): ParsedS
   }
 
   // メイクは必須カテゴリ。カードが送られてこなくても有効にする（機能仕様書 2.2.1）。
-  if (categories.makeup === undefined) categories.makeup = { referenceCount: 0 };
+  //
+  // ★ ただし除去専用モードでは足さない。
+  //   inpaint ではプロンプトが「マスク領域の中身」を指示するため、
+  //   肩のタトゥーを塗ったマスクに「メイクを変えろ」と言うと指示が破綻する。
+  //   PoC の S-05 は構造上メイクを含めていたが、除去だけを見たいこの
+  //   コーナーでは外すほうが正しい（buildPrompt 側も除去のみを許可済み）。
+  if (jobMode !== "removal" && categories.makeup === undefined) {
+    categories.makeup = { referenceCount: 0 };
+  }
+
+  if (jobMode === "removal" && categories.tattoo_removal === undefined) {
+    throw new Error("除去対象の種類を選んでください。");
+  }
 
   const categoryIds = Object.keys(categories) as CategoryId[];
 
@@ -158,20 +176,36 @@ export async function POST(request: Request) {
     return fail(500, error instanceof Error ? error.message : "サーバー側の設定が未完了です。");
   }
 
-  // 作り分け方（案 1 / 案 2）は設定側が持つ。
+  // 作り分け方（案 1 / 案 2）とフォールバックの設定は DB 側が持つ。
   const { data: limits } = await admin
     .from("demo_limits")
-    .select("images_per_job, variant_strategy")
+    .select(
+      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy",
+    )
     .eq("id", true)
     .single();
 
   const variantStrategy = (limits?.variant_strategy ?? "micro_delta") as VariantStrategy;
+
+  const policy: FallbackPolicy = {
+    enabled: limits?.fallback_enabled ?? true,
+    primary: (limits?.primary_provider ?? "openai") as FallbackPolicy["primary"],
+    fallback: (limits?.fallback_provider ?? "google") as FallbackPolicy["fallback"],
+    onPolicy: limits?.fallback_on_policy ?? true,
+  };
+
+  // ── モード（通常加工 / 除去専用） ──
+  //   除去は確定 UI の STEP 2 のカードではなく独立したコーナーとして扱う。
+  //   マスクを入力できるのは OpenAI だけで、Google へは回せないため、
+  //   通常加工と同じ経路に載せると「フォールバックが効くはず」という誤解を生む。
+  const jobMode: JobMode = form.get("jobMode") === "removal" ? "removal" : "normal";
 
   let selection: ParsedSelection;
   try {
     selection = parseSelection(
       JSON.parse(String(form.get("selection") ?? "{}")),
       variantStrategy,
+      jobMode,
     );
   } catch (error) {
     return fail(400, error instanceof Error ? error.message : "選択内容が不正です。");
@@ -191,7 +225,9 @@ export async function POST(request: Request) {
     if (!(maskFile instanceof File)) {
       return fail(
         400,
-        "タトゥー・不要物除去が有効ですが、マスクが未指定です。元画像上で除去範囲をブラシで塗るか、カードを無効化してください。",
+        jobMode === "removal"
+          ? "マスクが未指定です。元画像上で除去したい範囲をブラシで塗ってください。"
+          : "タトゥー・不要物除去が有効ですが、マスクが未指定です。元画像上で除去範囲をブラシで塗るか、カードを無効化してください。",
       );
     }
     try {
@@ -209,7 +245,10 @@ export async function POST(request: Request) {
   }
 
   // ── プロンプトが組めることを、上限を消費する前に確かめる ──
-  const slots = buildSlotSpecs().slice(0, limits?.images_per_job ?? 6);
+  const slots =
+    jobMode === "removal"
+      ? buildSlotSpecs("removal")
+      : buildSlotSpecs("normal").slice(0, limits?.images_per_job ?? 6);
   let builtHashes: string[];
   let templateVersion: string;
   try {
@@ -220,10 +259,15 @@ export async function POST(request: Request) {
     return fail(400, error instanceof Error ? error.message : "プロンプトを組み立てられません。");
   }
 
-  const perImageUsd = estimateOne(selection.requiresMask);
+  // 予約は高いほうのプロバイダの単価で押さえる（実額は settle_generation で差し替える）。
+  // 除去は OpenAI 専用なのでフォールバック分を見込まない。
+  const perImageUsd = reservationUnitUsd(
+    jobMode === "removal" ? { ...policy, enabled: false, primary: "openai" } : policy,
+    selection.requiresMask,
+  );
   const reservedCostUsd = Number((perImageUsd * slots.length).toFixed(6));
 
-  // ── 上限の確認（6 枚まとめて） ──
+  // ── 上限の確認（枚数ぶんまとめて） ──
   const { data: reservation, error: reserveError } = await admin.rpc("reserve_generation", {
     p_user: user.id,
     p_est_cost: reservedCostUsd,
@@ -254,6 +298,7 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       status: "queued",
+      job_mode: jobMode,
       scenario_id: selection.requiresMask ? "D-MASK" : "D-INSTRUCT",
       category_ids: selection.categoryIds,
       template_ids: selection.templateIds,
@@ -326,6 +371,8 @@ export async function POST(request: Request) {
         maskPng,
         selection,
         slots,
+        mode: jobMode,
+        policy,
         reservedCostUsd,
       });
     } catch (error) {

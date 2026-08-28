@@ -84,6 +84,18 @@ export async function PATCH(request: Request) {
     patch.variant_strategy = body.variant_strategy;
   }
 
+  // ── フォールバック（OpenAI → Google） ──
+  if (typeof body.fallback_enabled === "boolean") patch.fallback_enabled = body.fallback_enabled;
+  if (typeof body.fallback_on_policy === "boolean") {
+    patch.fallback_on_policy = body.fallback_on_policy;
+  }
+  if (body.primary_provider === "openai" || body.primary_provider === "google") {
+    patch.primary_provider = body.primary_provider;
+  }
+  if (body.fallback_provider === "openai" || body.fallback_provider === "google") {
+    patch.fallback_provider = body.fallback_provider;
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.from("demo_limits").update(patch).eq("id", true);
   if (error) {

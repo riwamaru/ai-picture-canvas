@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: job } = await supabase
     .from("jobs")
     .select(
-      "id, status, image_count, store_name, cast_name, session_title, category_ids, source_path, created_at, finished_at",
+      "id, status, job_mode, image_count, store_name, cast_name, session_title, category_ids, source_path, created_at, finished_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: images } = await supabase
     .from("job_images")
     .select(
-      "slot, makeup_strength, variant, status, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
+      "slot, makeup_strength, variant, status, provider, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
     )
     .eq("job_id", id)
     .order("slot", { ascending: true });
@@ -55,6 +55,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         makeupStrength: image.makeup_strength,
         variant: image.variant,
         status: image.status as "queued" | "running" | "succeeded" | "failed",
+        provider: image.provider,
+        // フォールバックが起きた場合、先に失敗したプロバイダとその理由。
+        // 画面に「OpenAI が拒否 → Google で生成」と出すために返す。
+        attemptedProvider: image.attempted_provider,
+        attemptedErrorKind: image.attempted_error_kind,
         latencyMs: image.latency_ms,
         costUsd: image.actual_cost_usd === null ? null : Number(image.actual_cost_usd),
         errorKind: image.error_kind,
@@ -73,6 +78,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     job: {
       id: job.id,
       status: job.status,
+      jobMode: job.job_mode,
       imageCount: job.image_count,
       storeName: job.store_name,
       castName: job.cast_name,
