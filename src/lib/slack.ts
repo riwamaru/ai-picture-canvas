@@ -77,14 +77,123 @@ export function isAllowedWebhook(raw: string | undefined): boolean {
   }
 }
 
+/**
+ * 値の中から Slack の Webhook URL を取り出す。
+ *
+ * ★ 環境変数は人が貼るものなので、引用符・前後の説明文・改行が混ざる。
+ *   そのたびに「設定したのに動かない」で止まるのは無駄なので、
+ *   hooks.slack.com への https URL が含まれていれば拾う。
+ *
+ * ★ ただし拾えるのは許可ホストのものだけ。
+ *   別ホストの URL が混ざっていても拾わない（送信先の取り違えを塞ぐ趣旨は変えない）。
+ */
+export function extractWebhook(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+
+  // 値そのものと、値の中に含まれる https URL の両方を候補にする。
+  // ★ 値そのものも「掃除してから」検査する。掃除せずに先に通すと、
+  //   末尾に句点が付いた URL（…abcdefg.）をそのまま採用してしまい、
+  //   送信時に 404 になる。
+  const candidates = [trimmed, ...(trimmed.match(/https:\/\/[^\s"'`<>]+/g) ?? [])];
+  for (const candidate of candidates) {
+    const cleaned = candidate
+      .replace(/^["'`]+/, "")
+      .replace(/[.,;:)\]}>"'`]+$/, "");
+    if (isAllowedWebhook(cleaned)) return cleaned;
+  }
+  return null;
+}
+
 function webhookUrl(): string | null {
-  const raw = process.env.SLACK_WEBHOOK_URL?.trim();
-  return isAllowedWebhook(raw) ? raw! : null;
+  return extractWebhook(process.env.SLACK_WEBHOOK_URL);
 }
 
 /** Slack が設定されているか（画面の表示に使う）。 */
 export function isSlackConfigured(): boolean {
   return webhookUrl() !== null;
+}
+
+/**
+ * 設定の診断。「設定したのに configured が false」の原因を切り分けるためのもの。
+ *
+ * ★ URL のパス（＝実質の資格情報）は返さない。ホスト名までにとどめる。
+ *   ホスト名は秘密ではなく、取り違えの発見に必要な情報である。
+ */
+export type WebhookDiagnosis = {
+  present: boolean;
+  length: number;
+  parsable: boolean;
+  protocol: string | null;
+  host: string | null;
+  allowed: boolean;
+  /** 何が混ざっているかの手掛かり。値そのものは一切含まない。 */
+  looksLike: {
+    startsWithHttps: boolean;
+    containsHooksSlack: boolean;
+    containsQuote: boolean;
+    containsWhitespace: boolean;
+    containsNewline: boolean;
+    /** 取り出せる URL が含まれていたか（含まれていれば救える）。 */
+    extractable: boolean;
+  };
+};
+
+export function diagnoseWebhook(): WebhookDiagnosis {
+  const raw = process.env.SLACK_WEBHOOK_URL ?? "";
+  const trimmed = raw.trim();
+  const empty = {
+    startsWithHttps: false,
+    containsHooksSlack: false,
+    containsQuote: false,
+    containsWhitespace: false,
+    containsNewline: false,
+    extractable: false,
+  };
+
+  if (!trimmed) {
+    return {
+      present: false,
+      length: 0,
+      parsable: false,
+      protocol: null,
+      host: null,
+      allowed: false,
+      looksLike: empty,
+    };
+  }
+
+  const looksLike = {
+    startsWithHttps: trimmed.startsWith("https://"),
+    containsHooksSlack: trimmed.includes(ALLOWED_WEBHOOK_HOST),
+    containsQuote: /["'`]/.test(trimmed),
+    containsWhitespace: /\s/.test(trimmed),
+    containsNewline: /[\r\n]/.test(trimmed),
+    extractable: extractWebhook(raw) !== null,
+  };
+
+  try {
+    const parsed = new URL(trimmed);
+    return {
+      present: true,
+      length: trimmed.length,
+      parsable: true,
+      protocol: parsed.protocol,
+      host: parsed.host,
+      allowed: isAllowedWebhook(trimmed),
+      looksLike,
+    };
+  } catch {
+    return {
+      present: true,
+      length: trimmed.length,
+      parsable: false,
+      protocol: null,
+      host: null,
+      allowed: false,
+      looksLike,
+    };
+  }
 }
 
 async function post(

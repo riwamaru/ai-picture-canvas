@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSlackConfigured } from "@/lib/slack";
+import { diagnoseWebhook, isSlackConfigured } from "@/lib/slack";
 
 /**
  * 上限設定（demo_limits）の読み書き。ADMIN_EMAILS の人だけ。
@@ -67,6 +67,8 @@ export async function GET() {
     slack: {
       // Webhook URL そのものは返さない（画面へ出す必要が無い）
       configured: isSlackConfigured(),
+      // 「設定したのに認識されない」を切り分けるための診断（URL のパスは含まない）
+      diagnosis: diagnoseWebhook(),
       deliveries: deliveries ?? [],
     },
   });
