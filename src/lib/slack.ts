@@ -196,14 +196,34 @@ export function diagnoseWebhook(): WebhookDiagnosis {
   }
 }
 
+export type DeliveryResult = {
+  /** Slack へ送れたか。設定が無くて送らなかった場合は skipped: true。 */
+  ok: boolean;
+  skipped: boolean;
+  statusCode: number | null;
+  error: string | null;
+  /** 送信の記録を残せたか。false なら「送ったのに履歴に出ない」状態になる。 */
+  recorded: boolean;
+  recordError: string | null;
+};
+
 async function post(
   admin: SupabaseClient,
   kind: "job" | "limit",
   jobId: string | null,
   payload: unknown,
-): Promise<void> {
+): Promise<DeliveryResult> {
   const url = webhookUrl();
-  if (!url) return;
+  if (!url) {
+    return {
+      ok: false,
+      skipped: true,
+      statusCode: null,
+      error: "SLACK_WEBHOOK_URL が未設定か、hooks.slack.com への https URL ではありません。",
+      recorded: false,
+      recordError: null,
+    };
+  }
 
   let ok = false;
   let statusCode: number | null = null;
@@ -226,10 +246,27 @@ async function post(
     error = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
   }
 
-  // 届かなかったことに気づけるように、成否を必ず残す
-  await admin
+  // 届かなかったことに気づけるように、成否を必ず残す。
+  //
+  // ★ 挿入の失敗を握り潰してはならない。
+  //   job_id には jobs への外部キーが張ってあるため、実在しない ID を渡すと
+  //   ここが静かに失敗する。以前それで「送信できたのに履歴が空」になった。
+  const { error: insertError } = await admin
     .from("slack_deliveries")
     .insert({ job_id: jobId, kind, ok, status_code: statusCode, error });
+
+  if (insertError) {
+    console.error("[slack] 送信記録を残せませんでした:", insertError.message);
+  }
+
+  return {
+    ok,
+    skipped: false,
+    statusCode,
+    error,
+    recorded: !insertError,
+    recordError: insertError?.message ?? null,
+  };
 }
 
 const YEN_PER_USD = 150; // config/limits.json の exchangeRate と同じ値
@@ -321,9 +358,20 @@ export async function notifyJobFinished(
   admin: SupabaseClient,
   settings: SlackSettings,
   summary: JobSummary,
-): Promise<void> {
-  if (!settings.slack_enabled) return;
-  await post(admin, "job", summary.jobId, buildJobMessage(settings, summary));
+  /** 記録に残すジョブ ID。実在しない ID を渡すと外部キーに弾かれるので、テスト送信では null。 */
+  jobIdForRecord: string | null = summary.jobId,
+): Promise<DeliveryResult> {
+  if (!settings.slack_enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      statusCode: null,
+      error: "設定で通知がオフになっています。",
+      recorded: false,
+      recordError: null,
+    };
+  }
+  return post(admin, "job", jobIdForRecord, buildJobMessage(settings, summary));
 }
 
 export type LimitHit = {
@@ -343,6 +391,7 @@ export async function notifyLimitHit(
 
   // 呼び出し間隔による一時的な待ちは、通知するとうるさいだけなので送らない。
   if (hit.reason === "user_interval" || hit.reason === "global_interval") return;
+
 
   const labels: Record<string, string> = {
     disabled: "管理者が生成を停止中",

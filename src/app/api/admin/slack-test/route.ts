@@ -46,7 +46,7 @@ export async function POST() {
     .eq("id", true)
     .single();
 
-  await notifyJobFinished(
+  const result = await notifyJobFinished(
     admin,
     {
       // テスト送信なので、通知オフの状態でも 1 通だけ送る
@@ -57,7 +57,8 @@ export async function POST() {
       daily_max_images: limits?.daily_max_images ?? 0,
     },
     {
-      jobId: "00000000-0000-0000-0000-000000000000",
+      // 表示用のダミー。記録側には渡さない（実在しないので外部キーに弾かれる）。
+      jobId: "テスト送信",
       email: user.email,
       mode: "normal",
       storeName: "（テスト送信）",
@@ -76,20 +77,28 @@ export async function POST() {
       todayImages: 0,
       todayCostUsd: 0,
     },
+    // ★ テスト送信は実在するジョブに紐づかないので、記録の job_id は null。
+    //   ダミーの UUID を渡すと jobs への外部キーに弾かれ、
+    //   「送れたのに履歴が空」になる。
+    null,
   );
 
-  // notifyJobFinished が slack_deliveries へ残した結果を読んで返す
-  const { data: last } = await admin
-    .from("slack_deliveries")
-    .select("ok, status_code, error")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // ★ DB を読み戻さず、送信結果そのものを返す。
+  //   読み戻す作りだと、記録の書き込みが失敗したときに
+  //   「送信も失敗した」と誤って報告してしまう。
+  if (result.ok) {
+    return NextResponse.json({
+      ok: true,
+      message:
+        "Slack へテスト送信しました。チャンネルを確認してください。" +
+        (result.recorded ? "" : `（ただし送信履歴を残せませんでした: ${result.recordError}）`),
+    });
+  }
 
   return NextResponse.json({
-    ok: last?.ok ?? false,
-    message: last?.ok
-      ? "Slack へテスト送信しました。チャンネルを確認してください。"
-      : `送信できませんでした（${last?.status_code ?? "応答なし"}）: ${last?.error ?? "不明"}`,
+    ok: false,
+    message: result.skipped
+      ? (result.error ?? "通知が無効です。")
+      : `送信できませんでした（HTTP ${result.statusCode ?? "応答なし"}）: ${result.error ?? "不明"}`,
   });
 }
