@@ -46,6 +46,12 @@ type SessionData = {
   }[];
 };
 
+/** チャット・バッジで使う短い表示名。 */
+const PROVIDER_LABEL_SHORT: Record<"openai" | "google", string> = {
+  openai: "OpenAI",
+  google: "Google（Gemini）",
+};
+
 const STRENGTH_LABEL: Record<MakeupStrength, string> = {
   weak: "弱",
   medium: "中",
@@ -355,10 +361,24 @@ export function AppShell({
     let text =
       mode === "removal"
         ? `マスク領域のみのインペインティング修復を ${finished.length} 枚実行しました。成功 ${ok} 枚。マスク外は変更していません。`
-        : `メイク強度「弱・中・強」各2枚、計${finished.length}枚のドラフト候補（1K）を生成しました。成功 ${ok} 枚。反映レイヤー：${activeCats.join("・")}。${removal}`;
+        : `${
+            // 枚数は設定（images_per_job）で変わる。6 枚のときだけ「各2枚」と言う。
+            finished.length === 6 ? "メイク強度「弱・中・強」各2枚、計6枚" : `計${finished.length}枚`
+          }のドラフト候補（1K）を生成しました。成功 ${ok} 枚。反映レイヤー：${activeCats.join("・")}。${removal}`;
 
     if (fellBack > 0) {
-      text += ` うち ${fellBack} 枚は OpenAI が拒否したため Google（Gemini）で生成しています。`;
+      // 「拒否」と「障害」は分けて言う。障害を拒否と書くと、
+      // 素材のせいで弾かれたのか、こちらの不調だったのかが読めなくなる。
+      const byPolicy = finished.filter(
+        (s) => s.status === "succeeded" && s.attemptedErrorKind === "policy",
+      ).length;
+      const reason =
+        byPolicy === fellBack
+          ? "拒否されたため"
+          : byPolicy === 0
+            ? "エラーになったため"
+            : `拒否・エラーになったため（うち拒否 ${byPolicy} 枚）`;
+      text += ` うち ${fellBack} 枚は ${PROVIDER_LABEL_SHORT[finished.find((s) => s.attemptedProvider)!.attemptedProvider!]}で${reason}、${PROVIDER_LABEL_SHORT[finished.find((s) => s.attemptedProvider)!.provider ?? "google"]}で生成しています。`;
     }
     if (policy > 0) {
       text +=
