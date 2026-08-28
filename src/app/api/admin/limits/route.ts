@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSlackConfigured } from "@/lib/slack";
 
 /**
  * 上限設定（demo_limits）の読み書き。ADMIN_EMAILS の人だけ。
@@ -51,7 +52,24 @@ export async function GET() {
     .select("email, max_images, used_images, last_call_at")
     .order("created_at", { ascending: true });
 
-  return NextResponse.json({ ok: true, limits, today, users: users ?? [] });
+  // 直近の通知が届いているか（黙って失敗していることに気づけるように）
+  const { data: deliveries } = await admin
+    .from("slack_deliveries")
+    .select("kind, ok, status_code, error, created_at")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  return NextResponse.json({
+    ok: true,
+    limits,
+    today,
+    users: users ?? [],
+    slack: {
+      // Webhook URL そのものは返さない（画面へ出す必要が無い）
+      configured: isSlackConfigured(),
+      deliveries: deliveries ?? [],
+    },
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -94,6 +112,11 @@ export async function PATCH(request: Request) {
   }
   if (body.fallback_provider === "openai" || body.fallback_provider === "google") {
     patch.fallback_provider = body.fallback_provider;
+  }
+
+  // ── Slack 通知 ──
+  for (const key of ["slack_enabled", "slack_on_limit", "slack_include_subject"] as const) {
+    if (typeof body[key] === "boolean") patch[key] = body[key];
   }
 
   const admin = createAdminClient();

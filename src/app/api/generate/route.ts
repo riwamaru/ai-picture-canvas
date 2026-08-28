@@ -16,6 +16,8 @@ import type { CategoryInput } from "@/lib/vendor/prompts/build";
 import { isCategoryId, PROCESS_KIND, type CategoryId } from "@/lib/vendor/prompts/categories";
 import { requireTemplate } from "@/lib/vendor/prompts/templates";
 import type { VariantStrategy } from "@/lib/vendor/prompts/variants";
+import { notifyLimitHit, type SlackSettings } from "@/lib/slack";
+import { CATEGORY_LABEL_JA } from "@/lib/vendor/prompts/categories";
 
 /**
  * 生成の唯一の入口（確定 UI の STEP 3「ドラフト6枚を生成」）。
@@ -124,6 +126,25 @@ function parseSelection(
   };
 }
 
+/**
+ * Slack に出す「何を加工したか」の一行。
+ * テンプレート名まで出す（どの条件で拒否されたかを後から追えるようにするため）。
+ */
+function describeContent(jobMode: JobMode, selection: ParsedSelection): string {
+  const parts = selection.categoryIds.map((id) => {
+    const templateId = selection.templateIds[id];
+    const label = CATEGORY_LABEL_JA[id];
+    if (!templateId) return label;
+    const template = requireTemplate(templateId);
+    return `${label}(${template.labelJa})`;
+  });
+  const free = Object.keys(selection.freeTexts).length;
+  return (
+    (parts.join("・") || (jobMode === "removal" ? "除去" : "メイク")) +
+    (free > 0 ? `／自由入力 ${free} 件` : "")
+  );
+}
+
 function fail(status: number, message: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ ok: false, message, ...extra }, { status });
 }
@@ -179,8 +200,9 @@ export async function POST(request: Request) {
   // 作り分け方（案 1 / 案 2）とフォールバックの設定は DB 側が持つ。
   const { data: limits } = await admin
     .from("demo_limits")
+    // ★ 1 つの文字列リテラルで書く。連結にすると Supabase の型推論が効かなくなる。
     .select(
-      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy",
+      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images",
     )
     .eq("id", true)
     .single();
@@ -192,6 +214,14 @@ export async function POST(request: Request) {
     primary: (limits?.primary_provider ?? "openai") as FallbackPolicy["primary"],
     fallback: (limits?.fallback_provider ?? "google") as FallbackPolicy["fallback"],
     onPolicy: limits?.fallback_on_policy ?? true,
+  };
+
+  const slackSettings: SlackSettings = {
+    slack_enabled: limits?.slack_enabled ?? false,
+    slack_on_limit: limits?.slack_on_limit ?? false,
+    slack_include_subject: limits?.slack_include_subject ?? true,
+    daily_budget_usd: limits?.daily_budget_usd ?? 0,
+    daily_max_images: limits?.daily_max_images ?? 0,
   };
 
   // ── モード（通常加工 / 除去専用） ──
@@ -284,6 +314,13 @@ export async function POST(request: Request) {
     remaining_user_images?: number;
   };
   if (!reserved.ok) {
+    // 上限に当たったことも記録として Slack へ流す（呼び出し間隔は除く。slack.ts 側で判断）
+    await notifyLimitHit(admin, slackSettings, {
+      email: user.email ?? user.id,
+      reason: reserved.reason ?? "unknown",
+      message: reserved.message ?? "",
+      requestedImages: slots.length,
+    });
     return fail(429, reserved.message ?? "上限に達しました。", {
       reason: reserved.reason,
       retryAfterSeconds: reserved.retry_after_seconds ?? null,
@@ -374,6 +411,14 @@ export async function POST(request: Request) {
         mode: jobMode,
         policy,
         reservedCostUsd,
+        slack: {
+          settings: slackSettings,
+          email: user.email ?? user.id,
+          storeName,
+          castName,
+          sessionTitle: String(form.get("sessionTitle") ?? "").trim() || null,
+          contentJa: describeContent(jobMode, selection),
+        },
       });
     } catch (error) {
       // ここで落ちるとスロットが「待機中」のまま残る。理由を残しておく。

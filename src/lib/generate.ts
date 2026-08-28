@@ -15,6 +15,7 @@ import type { ImageProvider } from "./vendor/providers/types";
 import { buildPrompt, type CategoryInput } from "./vendor/prompts/build";
 import { MAKEUP_STRENGTHS, type CategoryId, type MakeupStrength } from "./vendor/prompts/categories";
 import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
+import { notifyJobFinished, type SlackSettings } from "./slack";
 
 /**
  * 生成の実体。
@@ -157,6 +158,16 @@ type ProcessInput = {
   policy: FallbackPolicy;
   /** 予約時に引いた見積の合計。実額との差し替えに使う。 */
   reservedCostUsd: number;
+  /** Slack 通知に使う情報。通知が要らない場合は null。 */
+  slack: {
+    settings: SlackSettings;
+    email: string;
+    storeName: string | null;
+    castName: string | null;
+    sessionTitle: string | null;
+    /** 画面に出したのと同じ加工内容の説明。 */
+    contentJa: string;
+  } | null;
 };
 
 /**
@@ -176,6 +187,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
     mode,
     policy,
     reservedCostUsd,
+    slack,
   } = input;
 
   const keys: ProviderKeys = {
@@ -222,6 +234,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
 
   let actualCostUsd = 0;
   let refundImages = 0;
+  const startedAt = Date.now();
   const queue = [...slots];
 
   async function runOne(spec: SlotSpec): Promise<void> {
@@ -333,16 +346,19 @@ export async function processJob(input: ProcessInput): Promise<void> {
 
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slots.length) }, worker));
 
-  const { count: succeeded } = await admin
+  // ── 結果を数える（Slack にも同じ数字を送る） ──
+  const { data: finished } = await admin
     .from("job_images")
-    .select("id", { count: "exact", head: true })
-    .eq("job_id", jobId)
-    .eq("status", "succeeded");
+    .select("status, provider, attempted_provider, error_kind")
+    .eq("job_id", jobId);
+
+  const rows = finished ?? [];
+  const succeeded = rows.filter((r) => r.status === "succeeded").length;
 
   await admin
     .from("jobs")
     .update({
-      status: (succeeded ?? 0) > 0 ? "succeeded" : "failed",
+      status: succeeded > 0 ? "succeeded" : "failed",
       finished_at: new Date().toISOString(),
     })
     .eq("id", jobId);
@@ -354,4 +370,46 @@ export async function processJob(input: ProcessInput): Promise<void> {
     p_actual_cost: actualCostUsd,
     p_refund_images: refundImages,
   });
+
+  // ── Slack へ生成ログを送る ──
+  //
+  // ★ 精算のあとに送る。先に送ると「本日累計」が生成前の値になり、
+  //   通知の数字と実際の使用量がずれる。
+  // ★ 通知の失敗で生成結果を失わせない。例外は notifyJobFinished 側で握る。
+  if (slack) {
+    const byProvider: Partial<Record<ProviderName, number>> = {};
+    for (const row of rows) {
+      if (row.status !== "succeeded" || !row.provider) continue;
+      const name = row.provider as ProviderName;
+      byProvider[name] = (byProvider[name] ?? 0) + 1;
+    }
+
+    // 精算後の当日累計を読み直す（見積ではなく実額を出すため）
+    const { data: today } = await admin
+      .from("usage_daily")
+      .select("images, cost_usd")
+      .eq("day", usageDay)
+      .maybeSingle();
+
+    await notifyJobFinished(admin, slack.settings, {
+      jobId,
+      email: slack.email,
+      mode,
+      storeName: slack.storeName,
+      castName: slack.castName,
+      sessionTitle: slack.sessionTitle,
+      contentJa: slack.contentJa,
+      requested: slots.length,
+      succeeded,
+      policyRejected: rows.filter((r) => r.error_kind === "policy").length,
+      inputRejected: rows.filter((r) => r.error_kind === "input").length,
+      infraFailed: rows.filter((r) => r.error_kind === "infra").length,
+      byProvider,
+      fellBack: rows.filter((r) => r.status === "succeeded" && r.attempted_provider).length,
+      actualCostUsd,
+      elapsedMs: Date.now() - startedAt,
+      todayImages: today?.images ?? 0,
+      todayCostUsd: Number(today?.cost_usd ?? 0),
+    });
+  }
 }

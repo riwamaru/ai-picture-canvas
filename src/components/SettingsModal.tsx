@@ -28,6 +28,20 @@ type Limits = {
   primary_provider: "openai" | "google";
   fallback_provider: "openai" | "google";
   fallback_on_policy: boolean;
+  slack_enabled: boolean;
+  slack_on_limit: boolean;
+  slack_include_subject: boolean;
+};
+
+type SlackState = {
+  configured: boolean;
+  deliveries: {
+    kind: string;
+    ok: boolean;
+    status_code: number | null;
+    error: string | null;
+    created_at: string;
+  }[];
 };
 
 type UserRow = {
@@ -55,6 +69,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   } | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [slack, setSlack] = useState<SlackState | null>(null);
+  const [slackTest, setSlackTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [slackBusy, setSlackBusy] = useState(false);
 
   const reload = useCallback(async () => {
     const response = await fetch("/api/admin/limits", { cache: "no-store" });
@@ -64,6 +81,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       setLimits(data.limits as Limits);
       setToday(data.today ?? null);
       setUsers((data.users ?? []) as UserRow[]);
+      setSlack((data.slack ?? null) as SlackState | null);
       return;
     }
     // 読めなかったときに 0 を並べると「上限が 0 に設定されている」と読めてしまう。
@@ -334,6 +352,133 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             で決めることになっています。ここを切り替えると、その比較をこの画面で行えます。seed
             指定は OpenAI・Google のいずれも非対応のため、案 1 の差分はモデル固有のゆらぎのみに依存します。
           </div>
+
+          {/* ── Slack 通知 ── */}
+          <div className="settings-section-title">
+            Slack への生成ログ通知 <span className="sec-badge">F-10</span>
+          </div>
+
+          {slack && !slack.configured && (
+            <div className="invite-result error">
+              <strong>SLACK_WEBHOOK_URL が未設定です。</strong>
+              <br />
+              Slack で Incoming Webhook を作成し、その URL（<code>
+                https://hooks.slack.com/services/…
+              </code>）を環境変数 <code>SLACK_WEBHOOK_URL</code> に設定してください。
+              設定するまで通知は送られません（生成そのものは動きます）。
+            </div>
+          )}
+
+          {limits && (
+            <>
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-brands fa-slack" style={{ color: "var(--primary)" }} />{" "}
+                  1 回の生成が終わるたびに送る（枚数・料金・成否・モデル）
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.slack_enabled}
+                    onChange={(e) => void patch({ slack_enabled: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-solid fa-octagon-xmark" style={{ color: "#d97706" }} />{" "}
+                  上限に当たって生成を断ったときにも送る
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.slack_on_limit}
+                    onChange={(e) => void patch({ slack_on_limit: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-solid fa-user-tag" style={{ color: "var(--text-muted)" }} />{" "}
+                  店舗名・キャスト名を本文に含める
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.slack_include_subject}
+                    onChange={(e) => void patch({ slack_include_subject: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+            </>
+          )}
+
+          <div className="setting-note">
+            <i className="fa-solid fa-shield-halved" />{" "}
+            <strong>Slack へは画像も署名付き URL も送りません。</strong>
+            送るとチャンネルにいる全員が顔写真を開けてしまい、招待制で守っている前提が崩れます。
+            送るのは利用者・枚数・成否・モデル・料金・所要時間・当日累計のテキストだけです。
+            キャスト名は人物を指すラベルになりうるため、上のスイッチで落とせます。
+          </div>
+
+          <div className="row" style={{ gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="crb-btn primary"
+              disabled={slackBusy || !slack?.configured}
+              onClick={async () => {
+                setSlackBusy(true);
+                setSlackTest(null);
+                const response = await fetch("/api/admin/slack-test", { method: "POST" });
+                const data = await response.json().catch(() => null);
+                setSlackBusy(false);
+                setSlackTest(data ?? { ok: false, message: "応答を読めませんでした。" });
+                void reload();
+              }}
+            >
+              {slackBusy ? "送信中…" : "テスト送信する（費用は発生しません）"}
+            </button>
+          </div>
+
+          {slackTest && (
+            <div className={`invite-result${slackTest.ok ? "" : " error"}`}>
+              {slackTest.message}
+            </div>
+          )}
+
+          {slack && slack.deliveries.length > 0 && (
+            <table className="log-table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>日時</th>
+                  <th>種別</th>
+                  <th>結果</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slack.deliveries.map((d, i) => (
+                  <tr key={i}>
+                    <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
+                    <td>{d.kind === "job" ? "生成ログ" : "上限"}</td>
+                    <td>
+                      {d.ok ? (
+                        <span style={{ color: "#10b981", fontWeight: 600 }}>送信成功</span>
+                      ) : (
+                        <span style={{ color: "#ef4444", fontWeight: 600 }}>
+                          失敗 {d.status_code ?? ""} {String(d.error ?? "").slice(0, 60)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
           {/* ── 招待 ── */}
           <div className="settings-section-title">

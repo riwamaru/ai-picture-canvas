@@ -136,7 +136,6 @@ PoC のカタログ（背景「スタジオ（グレー背景）」など）と�
 | 確定保存（2K 再生成 → Google Drive） | 未実装。保存ボタンは画像のダウンロード |
 | 事前モデレーションスキャン（F-04） | 未実装。拒否はプロバイダ側の判定結果として事後に出る |
 | キャストマスタ登録（F-14） | 登録は行わない。入力名はこのセッションのラベルのみ |
-| Slack 通知 | 未実装 |
 
 なお**タトゥー除去は「未実装」ではなく、独立したコーナーとして動く**（上の「プロバイダ構成」を参照）。
 ただし PoC の実測では OpenAI がこの種の素材を全件拒否しており、成功する見込みは低い。
@@ -188,6 +187,54 @@ update public.demo_limits set enabled = false;
 
 ---
 
+## Slack への生成ログ通知
+
+**1 回の生成が終わるたびに、枚数・料金・成否・モデルを Slack へ送る**（確定 UI の設定モーダル F-10 を実動作にしたもの）。
+
+### 送るもの・送らないもの
+
+| | 内容 |
+| --- | --- |
+| **送る** | 利用者／店舗・キャスト／加工内容とテンプレート名／成功・拒否・不備・障害の内訳／モデル別の枚数とフォールバックの有無／実費（円換算つき）／所要時間／当日累計と予算消化率 |
+| **送らない** | **生成画像・元画像・署名付き URL・プロンプト全文・API キー** |
+
+> **画像と署名付き URL を送ってはならない。**
+> 署名付き URL は 1 時間有効なので、チャンネルにいる全員が顔写真を開けてしまう。
+> この環境は「招待された本人と管理者だけが見られる」ことを前提に権利の同意を取っている。
+> Slack へ流すとその前提が崩れる。
+
+送信内容に画像・URL・資格情報が混ざっていないことは機械的に検査済み。
+キャスト名は人物を指すラベルになりうるため、設定モーダルの
+「店舗名・キャスト名を本文に含める」で落とせる。
+
+### 送信先の固定
+
+`hooks.slack.com` への **https** 以外へは送らない（[`src/lib/slack.ts`](src/lib/slack.ts) の `isAllowedWebhook`）。
+`providers/http.ts` の `ALLOWED_HOSTS` と同じ考え方で、送信先の取り違えを塞ぐ。
+`https://hooks.slack.com.evil.example.com/` のような紛らわしい URL も弾くことを確認済み。
+
+### 設定のしかた
+
+1. Slack で App を作成 → **Incoming Webhooks** を有効化
+2. **Add New Webhook to Workspace** → 通知先チャンネルを選ぶ
+3. 出てきた `https://hooks.slack.com/services/…` を環境変数 `SLACK_WEBHOOK_URL` に設定
+
+```bash
+npx vercel env add SLACK_WEBHOOK_URL production
+```
+
+設定後、**管理者向けシステム設定 →「Slack への生成ログ通知」→「テスト送信する」** で疎通を確認できる
+（生成を行わないので費用はかからない）。
+
+### 届かなかったときに気づける
+
+送信の成否は `slack_deliveries` に必ず残り、設定モーダルに直近 5 件が表示される。
+**通知の失敗で生成が壊れることはない**（例外は握り、生成結果は保存される）。
+
+未設定でも生成そのものは動く。その場合は設定モーダルに未設定である旨が出る。
+
+---
+
 ## 同一条件 2 枚の作り分け（T-03 に使える）
 
 確定 UI は候補を「弱 - パターンA / 弱 - パターンB」と見せる。この 2 枚の作り分け方は
@@ -217,7 +264,8 @@ seed 指定は OpenAI・Google のいずれも非対応のため、案 1 の差�
 | --- | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → `service_role` | **設定済み** |
 | `OPENAI_API_KEY` | **デモ専用に新規発行したキー**（PoC 用と分ける） | ★未設定 |
-| `GEMINI_API_KEY` | **デモ専用・課金を有効にしたキー** | ★未設定 |
+| `GEMINI_API_KEY` | **デモ専用・課金を有効にしたキー** | 設定済み |
+| `SLACK_WEBHOOK_URL` | Slack の Incoming Webhook（任意。未設定でも生成は動く） | ★未設定 |
 
 > **`GEMINI_API_KEY` は課金を有効にしたキーを使うこと。**
 > 無料枠のままだと `quota_not_enabled` で弾かれる（PoC で実際に観測済み）。
@@ -248,7 +296,7 @@ npx vercel login
 cd demo && npx vercel link
 ```
 
-環境変数を 6 つ登録する（値は対話で聞かれる）:
+環境変数を 7 つ登録する（値は対話で聞かれる。`SLACK_WEBHOOK_URL` は任意）:
 
 ```bash
 npx vercel env add NEXT_PUBLIC_SUPABASE_URL production
@@ -268,6 +316,10 @@ npx vercel env add OPENAI_API_KEY production
 
 ```bash
 npx vercel env add GEMINI_API_KEY production
+```
+
+```bash
+npx vercel env add SLACK_WEBHOOK_URL production
 ```
 
 ```bash
@@ -368,5 +420,6 @@ Fluid compute の懸念は解消している。`after()` による応答後の�
 | 2 | ~~Vercel へのデプロイ~~ **完了**（https://ai-canvas-demo.vercel.app）。Supabase の Site URL / Redirect URLs は**メールのログインリンクを使う場合のみ**必要（パスワードログインには不要） |
 | 3 | ~~実 API の疎通確認~~ **完了**（上の表を参照） |
 | 4 | 「意図的に変えた点」の合意（①自由テキスト、②ポリシー拒否でのフォールバック） |
-| 5 | 独自 SMTP の設定（メールのログインリンクを常用する場合） |
-| 6 | PoC 側で `maskSemantics` が実測確定したら [`src/lib/models.ts`](src/lib/models.ts) を揃える |
+| 5 | `SLACK_WEBHOOK_URL` の設定とテスト送信（通知を使う場合） |
+| 6 | 独自 SMTP の設定（メールのログインリンクを常用する場合） |
+| 7 | PoC 側で `maskSemantics` が実測確定したら [`src/lib/models.ts`](src/lib/models.ts) を揃える |
