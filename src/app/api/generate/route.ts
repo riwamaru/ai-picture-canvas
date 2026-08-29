@@ -202,7 +202,7 @@ export async function POST(request: Request) {
     .from("demo_limits")
     // ★ 1 つの文字列リテラルで書く。連結にすると Supabase の型推論が効かなくなる。
     .select(
-      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images",
+      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy, removal_fallback_enabled, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images",
     )
     .eq("id", true)
     .single();
@@ -291,8 +291,13 @@ export async function POST(request: Request) {
 
   // 予約は高いほうのプロバイダの単価で押さえる（実額は settle_generation で差し替える）。
   // 除去は OpenAI 専用なのでフォールバック分を見込まない。
+  // 予約は高いほうのプロバイダの単価で押さえる（実額は settle_generation で差し替える）。
+  // 除去も Gemini へ回すようになったので、通常加工と同じ扱いにする。
+  const removalFallsBack = (limits?.removal_fallback_enabled ?? true) && policy.enabled;
   const perImageUsd = reservationUnitUsd(
-    jobMode === "removal" ? { ...policy, enabled: false, primary: "openai" } : policy,
+    jobMode === "removal"
+      ? { ...policy, enabled: removalFallsBack, primary: "openai", fallback: "google" }
+      : policy,
     selection.requiresMask,
   );
   const reservedCostUsd = Number((perImageUsd * slots.length).toFixed(6));
@@ -410,6 +415,14 @@ export async function POST(request: Request) {
         slots,
         mode: jobMode,
         policy,
+        removal:
+          jobMode === "removal" && selection.templateIds.tattoo_removal
+            ? {
+                templateId: selection.templateIds.tattoo_removal,
+                freeText: selection.freeTexts.tattoo_removal ?? null,
+                fallbackEnabled: limits?.removal_fallback_enabled ?? true,
+              }
+            : null,
         reservedCostUsd,
         slack: {
           settings: slackSettings,

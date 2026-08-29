@@ -19,6 +19,7 @@ type Slot = {
   variant: number;
   status: "queued" | "running" | "succeeded" | "failed";
   provider: "openai" | "google" | null;
+  editMethod: "inpaint" | "semantic_mask" | "instruct" | null;
   attemptedProvider: "openai" | "google" | null;
   attemptedErrorKind: string | null;
   latencyMs: number | null;
@@ -271,10 +272,12 @@ export function AppShell({
             <div className="gate-note">
               <i className="fa-solid fa-triangle-exclamation" />
               <span>
-                マスク画像を入力できるのは OpenAI だけで、Google（Gemini）へは回せません。
-                PoC の実測（2026-08-16）では、その OpenAI がこの種の素材を全件拒否しています。
-                <strong>拒否される可能性が高いことを承知のうえでお試しください。</strong>
-                拒否は課金されず、実測データとして記録されます。
+                まず <strong>OpenAI</strong> がマスク画像を使って修復します（マスク外は変更されません）。
+                拒否された場合は <strong>Google（Gemini）</strong> へ回しますが、Gemini
+                はマスク画像を受け取れないため、
+                <strong>範囲を目印と文章で伝える別方式</strong>になります。
+                こちらは<strong>マスク外が変わらない保証がありません</strong>。
+                結果には「マスク指定」「範囲を説明」のどちらで作られたかが表示されます。
               </span>
             </div>
 
@@ -409,7 +412,17 @@ export function AppShell({
 
     let text =
       mode === "removal"
-        ? `マスク領域のみのインペインティング修復を ${finished.length} 枚実行しました。成功 ${ok} 枚。マスク外は変更していません。`
+        ? (() => {
+            const semantic = finished.filter(
+              (s) => s.status === "succeeded" && s.editMethod === "semantic_mask",
+            ).length;
+            const base = `除去を ${finished.length} 枚実行しました。成功 ${ok} 枚。`;
+            return semantic > 0
+              ? base +
+                  `うち ${semantic} 枚は OpenAI が受け付けなかったため、Google（Gemini）で範囲を目印と文章で伝える方式で作っています。` +
+                  `この方式ではマスク外が変わらない保証がないので、元画像と見比べてください。`
+              : base + "マスク領域のみを修復し、マスク外は変更していません。";
+          })()
         : `${
             // 枚数は設定（images_per_job）で変わる。6 枚のときだけ「各2枚」と言う。
             finished.length === 6 ? "メイク強度「弱・中・強」各2枚、計6枚" : `計${finished.length}枚`
@@ -1220,6 +1233,23 @@ export function AppShell({
                         {slot.provider === "openai" ? "OpenAI" : "Google"}
                       </span>
                     ) : null;
+                    // 除去のとき、どちらの方式で作られたかを示す。
+                    // inpaint は「マスク外は不変」が仕組みで担保されるが、
+                    // semantic_mask にはその保証が無い。ここを黙っていると誤読される。
+                    const methodBadge =
+                      mode === "removal" && slot.editMethod ? (
+                        <span
+                          className={`provider-badge ${slot.editMethod === "inpaint" ? "openai" : "fallback"}`}
+                          title={
+                            slot.editMethod === "inpaint"
+                              ? "マスク画像を API へ渡す方式。マスク外は変更されません"
+                              : "目印つき画像と文章で範囲を伝える方式。マスク外が変わらない保証はありません"
+                          }
+                        >
+                          {slot.editMethod === "inpaint" ? "マスク指定" : "範囲を説明"}
+                        </span>
+                      ) : null;
+
                     const fallbackBadge = slot.attemptedProvider ? (
                       <span className="provider-badge fallback" title="先に試して失敗したプロバイダ">
                         {slot.attemptedProvider === "openai" ? "OpenAI" : "Google"}
@@ -1266,6 +1296,7 @@ export function AppShell({
                             <span className="slot-providers">
                               {fallbackBadge}
                               {providerBadge}
+                              {methodBadge}
                             </span>
                             {slot.errorKind === "policy" && (
                               <span className="slot-reason">
@@ -1299,6 +1330,7 @@ export function AppShell({
                           <span className="result-badge">{label}</span>
                           {fallbackBadge}
                           {providerBadge}
+                          {methodBadge}
                           <button
                             className="action-icon-btn"
                             title="拡大して見る"

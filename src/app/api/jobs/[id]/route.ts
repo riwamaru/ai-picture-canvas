@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: images } = await supabase
     .from("job_images")
     .select(
-      "slot, makeup_strength, variant, status, provider, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
+      "slot, makeup_strength, variant, status, provider, edit_method, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
     )
     .eq("job_id", id)
     .order("slot", { ascending: true });
@@ -56,6 +56,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         variant: image.variant,
         status: image.status as "queued" | "running" | "succeeded" | "failed",
         provider: image.provider,
+        // inpaint（マスク画像を渡す）か semantic_mask（目印と文章で伝える）か。
+        // 「マスク外は不変」の保証の有無が違うので、画面でも区別する。
+        editMethod: image.edit_method,
         // フォールバックが起きた場合、先に失敗したプロバイダとその理由。
         // 画面に「OpenAI が拒否 → Google で生成」と出すために返す。
         attemptedProvider: image.attempted_provider,

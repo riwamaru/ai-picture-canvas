@@ -28,6 +28,7 @@ type Limits = {
   primary_provider: "openai" | "google";
   fallback_provider: "openai" | "google";
   fallback_on_policy: boolean;
+  removal_fallback_enabled: boolean;
   slack_enabled: boolean;
   slack_on_limit: boolean;
   slack_include_subject: boolean;
@@ -315,6 +316,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   <span className="slider" />
                 </label>
               </div>
+
+              <div className="toggle-inline">
+                <span>
+                  <i className="fa-solid fa-eraser" style={{ color: "var(--type-c)" }} />{" "}
+                  除去も Gemini へ回す（範囲を目印と文章で伝える方式）
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={limits.removal_fallback_enabled}
+                    onChange={(e) => void patch({ removal_fallback_enabled: e.target.checked })}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
             </>
           )}
           <div className="setting-note">
@@ -324,8 +340,16 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             その規則ではフォールバックが一度も発動しないため、委託者判断でポリシー拒否も対象にしています。
             禁止事項③が禁じるのは「文言を変えた再投入」であり、同一プロンプトを別ベンダーへ送ることは
             これに当たりません。<strong>拒否は課金されない</strong>ため、追加費用も発生しません。
-            なお<strong>タトゥー除去はマスク入力が必要なため OpenAI 専用</strong>で、
-            フォールバック先がありません（Google はマスク画像を受け付けない）。
+            <br />
+            <strong>除去（マスク編集）は方式が 2 つある。</strong> OpenAI はマスク画像そのものを
+            API へ渡すので「マスク外は変更しない」ことが仕組みで担保される。Gemini
+            はマスク画像を受け取れないため（対応していた imagen-3.0-capability-001 は 2026-06-30
+            に停止済み。2026-08-28 時点のモデル一覧にも inpaint 対応は無い）、
+            <strong>範囲の輪郭を描き込んだ画像と位置の説明で伝える</strong>方式になる。
+            こちらは<strong>マスク外の不変が保証されない</strong>ので、結果には
+            「マスク指定」「範囲を説明」のどちらかが表示される。
+            T-02 の判定基準（マスク外に変化なしが 8 割以上）は前者にしか適用できないため、
+            測定目的なら上のスイッチを切って OpenAI 単独の結果だけを見ることもできる。
           </div>
 
           {/* ── 同一条件 2 枚の作り分け ── */}

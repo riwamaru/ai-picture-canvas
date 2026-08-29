@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sharpMaskCodec } from "./mask";
+import { analyzeMask, renderMaskGuide, sharpMaskCodec, type MaskRegion } from "./mask";
+import { buildSemanticRemovalPrompt } from "./removal";
 import {
   DEMO_RESOLUTION,
   GOOGLE_CONFIG,
@@ -156,6 +157,14 @@ type ProcessInput = {
   slots: SlotSpec[];
   mode: JobMode;
   policy: FallbackPolicy;
+  /** 除去モードのときの追加情報（Gemini へ semantic masking で回すために使う）。 */
+  removal: {
+    /** 除去対象の種類（凍結済みカタログの ID）。 */
+    templateId: string;
+    freeText: string | null;
+    /** OpenAI が失敗したら Gemini へ回すか。 */
+    fallbackEnabled: boolean;
+  } | null;
   /** 予約時に引いた見積の合計。実額との差し替えに使う。 */
   reservedCostUsd: number;
   /** Slack 通知に使う情報。通知が要らない場合は null。 */
@@ -186,6 +195,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
     slots,
     mode,
     policy,
+    removal,
     reservedCostUsd,
     slack,
   } = input;
@@ -195,19 +205,34 @@ export async function processJob(input: ProcessInput): Promise<void> {
     google: process.env.GEMINI_API_KEY,
   };
 
-  // 除去は OpenAI 専用（Google はマスク入力不可）。それ以外は設定に従う。
-  const chain: ProviderName[] =
-    mode === "removal"
-      ? ["openai"]
-      : policy.enabled && policy.fallback !== policy.primary
-        ? [policy.primary, policy.fallback]
-        : [policy.primary];
+  // ── どのプロバイダを、どの方式で試すか ──
+  //
+  // 除去（マスク）の扱いが通常加工と違う：
+  //   OpenAI … inpaint。マスク画像そのものを渡すので、マスク外の不変が仕組みで担保される
+  //   Google … マスク画像を渡せない。目印つき画像と文章で範囲を伝える（semantic masking）
+  //
+  // ★ 後者は前者の代替ではない。「マスク外は不変」の保証が無いので、
+  //   どちらで作ったかを edit_method に必ず残す。
+  type Attempt = { provider: ProviderName; method: "inpaint" | "semantic_mask" | "instruct" };
 
-  const usable = chain.filter((name) => createProvider(name, keys) !== null);
+  const chain: Attempt[] =
+    mode === "removal"
+      ? [
+          { provider: "openai", method: "inpaint" },
+          ...(removal?.fallbackEnabled && policy.enabled
+            ? [{ provider: "google" as ProviderName, method: "semantic_mask" as const }]
+            : []),
+        ]
+      : (policy.enabled && policy.fallback !== policy.primary
+          ? [policy.primary, policy.fallback]
+          : [policy.primary]
+        ).map((provider) => ({ provider, method: "instruct" as const }));
+
+  const usable = chain.filter((attempt) => createProvider(attempt.provider, keys) !== null);
 
   if (usable.length === 0) {
     const missing = chain
-      .map((name) => (name === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"))
+      .map((a) => (a.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"))
       .join(" / ");
     await admin
       .from("job_images")
@@ -232,6 +257,19 @@ export async function processJob(input: ProcessInput): Promise<void> {
 
   const editMode = selection.requiresMask ? "inpaint" : "instruct";
 
+  // semantic masking で使う材料。除去モードで Gemini を試すときだけ作る。
+  let maskRegion: MaskRegion | null = null;
+  let maskGuide: Buffer | null = null;
+  if (mode === "removal" && maskPng && usable.some((a) => a.method === "semantic_mask")) {
+    try {
+      maskRegion = await analyzeMask(maskPng);
+      maskGuide = await renderMaskGuide(sourcePng, maskPng);
+    } catch (error) {
+      // 目印が作れなくても OpenAI の inpaint は動く。ここで止めない。
+      console.error("[removal] 目印つき画像を作れませんでした:", error);
+    }
+  }
+
   let actualCostUsd = 0;
   let refundImages = 0;
   const startedAt = Date.now();
@@ -250,23 +288,48 @@ export async function processJob(input: ProcessInput): Promise<void> {
     let attempted: { provider: ProviderName; kind: string; detail: string } | null = null;
 
     for (let index = 0; index < usable.length; index += 1) {
-      const name = usable[index]!;
+      const { provider: name, method } = usable[index]!;
       const provider = createProvider(name, keys)!;
       const isLast = index === usable.length - 1;
+
+      // semantic masking はマスク画像を渡せないので、目印つき画像と文章で伝える。
+      // 材料が作れなかった場合はこの試行を飛ばす（黙って別物を送らない）。
+      if (method === "semantic_mask" && (!maskGuide || !maskRegion || !removal)) {
+        if (isLast) break;
+        continue;
+      }
+
+      const semantic =
+        method === "semantic_mask" && maskRegion && removal
+          ? buildSemanticRemovalPrompt({
+              templateId: removal.templateId,
+              freeText: removal.freeText,
+              region: maskRegion,
+            })
+          : null;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), PER_CALL_TIMEOUT_MS);
 
       try {
         const result = await provider.edit(
-          {
-            mode: editMode,
-            baseImage: new Uint8Array(sourcePng),
-            maskImage: maskPng ? new Uint8Array(maskPng) : undefined,
-            prompt: built.text,
-            resolution: DEMO_RESOLUTION,
-            variantSeedHint: built.variantSeedHint,
-          },
+          semantic
+            ? {
+                // 元画像 ＋ 目印つき画像の 2 枚。mode は reference（マスクは渡さない）。
+                mode: "reference",
+                baseImage: new Uint8Array(sourcePng),
+                referenceImages: [new Uint8Array(maskGuide!)],
+                prompt: semantic.text,
+                resolution: DEMO_RESOLUTION,
+              }
+            : {
+                mode: editMode,
+                baseImage: new Uint8Array(sourcePng),
+                maskImage: maskPng ? new Uint8Array(maskPng) : undefined,
+                prompt: built.text,
+                resolution: DEMO_RESOLUTION,
+                variantSeedHint: built.variantSeedHint,
+              },
           controller.signal,
         );
 
@@ -283,6 +346,9 @@ export async function processJob(input: ProcessInput): Promise<void> {
           .update({
             status: "succeeded",
             provider: name,
+            edit_method: method,
+            // semantic masking は別のプロンプトを使うので、ハッシュも差し替える
+            ...(semantic ? { prompt_hash: semantic.hash } : {}),
             attempted_provider: attempted?.provider ?? null,
             attempted_error_kind: attempted?.kind ?? null,
             attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
@@ -320,6 +386,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
           .update({
             status: "failed",
             provider: name,
+            edit_method: method,
             attempted_provider: attempted?.provider ?? null,
             attempted_error_kind: attempted?.kind ?? null,
             attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,

@@ -117,6 +117,10 @@ export async function PATCH(request: Request) {
   }
 
   // ── Slack 通知 ──
+  if (typeof body.removal_fallback_enabled === "boolean") {
+    patch.removal_fallback_enabled = body.removal_fallback_enabled;
+  }
+
   for (const key of ["slack_enabled", "slack_on_limit", "slack_include_subject"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key];
   }
