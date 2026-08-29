@@ -473,3 +473,125 @@
 .provider-badge.fallback { color: #b45309; background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); }
 
 .slot-providers { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; justify-content: center; }
+
+/* ============================================================
+   拡大表示（ライトボックス）
+   確定 UI には無い。候補が小さくて中身を確認できなかったため追加。
+   ★ 閉じる手段を 4 つ用意する（× ボタン／背景タップ／Esc／端末の戻る）。
+     モバイルで「戻れない」が起きたのがこの機能を足した直接の理由なので、
+     閉じられないことがあってはならない。
+   ============================================================ */
+.lightbox {
+    position: fixed; inset: 0; z-index: 12000;
+    background: rgba(10, 15, 25, 0.92);
+    display: flex; flex-direction: column;
+    animation: fadeIn 0.15s ease;
+}
+.lightbox-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    color: #fff; flex-shrink: 0;
+    /* iPhone のノッチ・ホームバーを避ける */
+    padding-top: calc(12px + env(safe-area-inset-top));
+}
+.lightbox-title {
+    font-size: 0.82rem; font-weight: 600;
+    margin-right: auto;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lightbox-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: #fff;
+    font-size: 0.8rem; font-weight: 600;
+    padding: 9px 14px; border-radius: 999px;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.15s;
+    /* 指で押せる大きさを確保する */
+    min-height: 40px;
+}
+.lightbox-btn:hover { background: rgba(255,255,255,0.24); }
+.lightbox-btn.close { padding: 9px 13px; }
+.lightbox-body {
+    flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px calc(16px + env(safe-area-inset-bottom));
+    overflow: auto;
+}
+.lightbox-body img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #0d1117;
+}
+.lightbox-hint {
+    text-align: center; color: rgba(255,255,255,0.6);
+    font-size: 0.7rem; padding: 0 14px 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+/* 候補の画像に「押せる」ことを示す */
+.result-item img { cursor: zoom-in; }
+
+/* ============================================================
+   モバイル対応
+   確定 UI は 3 カラム固定（300px / 1fr / 470px・height:100vh・
+   overflow:hidden）で、メディアクエリが 1 つも無かった。
+   スマートフォンでは操作できないため、縦積みに切り替える。
+   ★ デスクトップの見た目は変えない（900px 以上は従来どおり）。
+   ============================================================ */
+@media (max-width: 900px) {
+    body { height: auto; overflow: auto; display: block; }
+
+    #app-wrapper { height: auto; min-height: 100vh; }
+
+    .main-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    .column {
+        height: auto;
+        overflow: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border-glass);
+        padding: 18px;
+    }
+    .column:last-child { border-bottom: none; }
+
+    /* 左サイドバーは操作の主役ではないので、順番を下げて畳む */
+    .sidebar {
+        order: 3;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 16px;
+    }
+    .sidebar-top { overflow: visible; }
+    .history-section { max-height: 240px; }
+
+    #center-operation-column { order: 1; }
+    /* 生成ボタンと結果は先に見えてほしい */
+    #right-result-column { order: 2; }
+
+    .right-column-container { height: auto; }
+
+    /* 候補は 2 列のままだと 1 枚が小さすぎる */
+    .results-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+    /* 常時表示にする（モバイルには hover が無い） */
+    .result-actions { opacity: 1; }
+
+    .card-grid-fields { grid-template-columns: 1fr; }
+    .settings-grid-row { grid-template-columns: 1fr; }
+    .invite-row { grid-template-columns: 1fr; }
+
+    .modal-card { max-height: 92vh; width: 94vw; }
+    .mode-tabs { flex-direction: column; }
+}
+
+@media (max-width: 560px) {
+    /* 1 列にして 1 枚を大きく見せる */
+    .results-grid { grid-template-columns: 1fr; }
+    .cast-register-fields { grid-template-columns: 1fr; }
+}

@@ -120,6 +120,8 @@ export function AppShell({
   const [chatInput, setChatInput] = useState("");
   const [chatExpanded, setChatExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 拡大表示しているスロット番号。null なら閉じている。 */
+  const [zoomSlot, setZoomSlot] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // 除去コーナーでは常にマスクが要る。通常加工では除去カードを出さない。
@@ -335,6 +337,53 @@ export function AppShell({
       </div>
   );
 
+  /**
+   * 拡大表示を開く。
+   *
+   * ★ 履歴を 1 つ積む。こうしないと Android の戻るボタンや
+   *   ブラウザの戻るでアプリごと離脱してしまう。
+   *   「戻れない」がこの機能を足した直接の理由なので、
+   *   閉じる手段は多いほうがよい（× ／ 背景タップ ／ Esc ／ 端末の戻る）。
+   */
+  function openZoom(slot: number) {
+    setZoomSlot(slot);
+    setSelectedSlot(slot);
+    try {
+      history.pushState({ zoom: slot }, "");
+    } catch {
+      // 履歴が使えない環境でも拡大表示自体は動かす
+    }
+  }
+
+  function closeZoom() {
+    setZoomSlot(null);
+  }
+
+  // Esc と端末の戻るで閉じる
+  useEffect(() => {
+    if (zoomSlot === null) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        history.back();
+      }
+    };
+    const onPop = () => setZoomSlot(null);
+
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("popstate", onPop);
+    // 背後の画面がスクロールしないようにする
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("popstate", onPop);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [zoomSlot]);
+
   function pushChat(role: "assistant" | "user" | "warn", text: string) {
     setChat((current) => [...current, { role, text }]);
   }
@@ -541,16 +590,19 @@ export function AppShell({
     );
   }
 
-  async function saveImage(slot: Slot) {
-    if (!slot.url) return;
-    // 確定 UI は「高解像度で再生成し Google Drive へ保存」だが、
-    // この体験環境では 2K 再生成も Drive 連携も未実装。実際にできる保存＝ダウンロード。
-    const link = document.createElement("a");
-    link.href = slot.url;
-    link.download = `${sessionTitle}_候補${slot.slot + 1}.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+  function saveImage(slot: Slot) {
+    if (!slot.url || !jobId) return;
+
+    // ★ 署名付き URL を <a download> に入れてはいけない。
+    //   download 属性はクロスオリジンの URL では無視される仕様で、
+    //   署名付き URL は Supabase（別オリジン）を指すため、
+    //   ブラウザはダウンロードせず「その URL へ遷移」してしまう。
+    //   画面いっぱいに画像が出てアプリへ戻れなくなる（実際にそうなった）。
+    //
+    //   同一オリジンの API ルートが Content-Disposition: attachment を付けて返すので、
+    //   そちらへ遷移させる。iOS Safari を含めて確実にダウンロードになる。
+    window.location.href = `/api/jobs/${jobId}/download?slot=${slot.slot}`;
+
     pushChat(
       "assistant",
       `候補${slot.slot + 1}をダウンロードしました。確定処理（高解像度2K再生成・Google Drive 共有ドライブへの自動保存）は、この体験環境では未実装です。`,
@@ -1234,17 +1286,35 @@ export function AppShell({
                       >
                         <span className="slot-tag done">完了</span>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={slot.url ?? ""} alt={label} />
+                        <img
+                          src={slot.url ?? ""}
+                          alt={label}
+                          title="タップで拡大"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openZoom(slot.slot);
+                          }}
+                        />
                         <div className="result-actions">
                           <span className="result-badge">{label}</span>
                           {fallbackBadge}
                           {providerBadge}
                           <button
                             className="action-icon-btn"
+                            title="拡大して見る"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openZoom(slot.slot);
+                            }}
+                          >
+                            <i className="fa-solid fa-magnifying-glass-plus" />
+                          </button>
+                          <button
+                            className="action-icon-btn"
                             title="ダウンロード"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void saveImage(slot);
+                              saveImage(slot);
                             }}
                           >
                             <i className="fa-solid fa-floppy-disk" />
@@ -1299,6 +1369,75 @@ export function AppShell({
       </div>
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      {/* ── 拡大表示 ──
+          閉じる手段を 4 つ用意する：× ボタン／背景タップ／Esc／端末の戻る。
+          モバイルで「戻れない」が起きたのが、この機能を足した理由。 */}
+      {zoomSlot !== null &&
+        (() => {
+          const slot = slots.find((s) => s.slot === zoomSlot);
+          if (!slot?.url) return null;
+          const label =
+            mode === "removal"
+              ? "マスク領域の修復"
+              : `${STRENGTH_LABEL[slot.makeupStrength]} - パターン${slot.variant === 1 ? "A" : "B"}`;
+
+          return (
+            <div
+              className="lightbox"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${label} の拡大表示`}
+              onClick={() => history.back()}
+            >
+              <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+                <span className="lightbox-title">
+                  候補{slot.slot + 1}　{label}
+                  {slot.provider && `　／　${PROVIDER_LABEL_SHORT[slot.provider]}`}
+                </span>
+
+                <button
+                  className="lightbox-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveImage(slot);
+                  }}
+                  title="この画像を保存する"
+                >
+                  <i className="fa-solid fa-floppy-disk" /> ダウンロード
+                </button>
+
+                <button
+                  className="lightbox-btn close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    history.back();
+                  }}
+                  aria-label="閉じる"
+                  title="閉じる"
+                >
+                  <i className="fa-solid fa-xmark" /> 閉じる
+                </button>
+              </div>
+
+              {/* ★ 閉じる処理は最外の .lightbox にだけ置く。
+                  ここにも置くとイベントが伝播して history.back() が 2 回走り、
+                  拡大表示だけでなくアプリごと前のページへ戻ってしまう。 */}
+              <div className="lightbox-body">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={slot.url}
+                  alt={label}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              <p className="lightbox-hint">
+                画像の外側をタップするか、Esc キー・端末の戻るでも閉じられます
+              </p>
+            </div>
+          );
+        })()}
     </div>
   );
 }
