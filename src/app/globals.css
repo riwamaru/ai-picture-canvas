@@ -244,6 +244,9 @@
         .cast-register-box input, .cast-register-box select { padding: 9px 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); font-size: 0.82rem; outline: none; font-family: inherit; }
         .cast-register-box input:focus { border-color: var(--primary); }
         .crb-actions { display: flex; gap: 8px; }
+        /* 設定モーダルのボタンを横並びにする。gap をインラインで指定しているが、
+           display:flex が無いと効かず、ボタンが縦に積まれていた。 */
+        .row { display: flex; flex-wrap: wrap; align-items: center; }
         .crb-btn { padding: 9px 16px; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700; cursor: pointer; border: none; font-family: inherit; }
         .crb-btn.primary { background: var(--primary); color: #fff; }
         .crb-btn.primary:hover { background: var(--primary-hover); }
@@ -321,6 +324,12 @@
         .result-badge { font-size: 0.65rem; background: rgba(255,255,255,0.9); color: var(--text-main); padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: var(--shadow-sm); }
         .action-icon-btn { background: #fff; color: #0f172a; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: transform 0.1s; box-shadow: var(--shadow-sm); }
         .action-icon-btn:hover { transform: scale(1.1); }
+        .action-icon-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+        /* Google Drive への保存状態（仕様書 4.7.2）。
+           未同期は赤ではなく橙にしてある。画像は失われておらず、
+           あとから自動で再送されるため、事故として見せる必要がない。 */
+        .action-icon-btn.drive-synced { background: #16a34a; color: #fff; }
+        .action-icon-btn.drive-failed { background: #f59e0b; color: #fff; }
 
         /* ジョブスロットの状態表示 */
         .slot-state { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: 0.78rem; font-weight: 600; padding: 8px; text-align: center; }

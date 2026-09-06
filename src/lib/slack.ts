@@ -209,7 +209,7 @@ export type DeliveryResult = {
 
 async function post(
   admin: SupabaseClient,
-  kind: "job" | "limit",
+  kind: "job" | "limit" | "drive",
   jobId: string | null,
   payload: unknown,
 ): Promise<DeliveryResult> {
@@ -413,6 +413,58 @@ export async function notifyLimitHit(
             `:octagonal_sign: *生成を止めました*　${labels[hit.reason] ?? hit.reason}\n` +
             `*利用者* ${hit.email}　*要求* ${hit.requestedImages} 枚\n` +
             `> ${hit.message}`,
+        },
+      },
+    ],
+  });
+}
+
+export type DriveIncident = {
+  title: string;
+  detail: string;
+};
+
+/**
+ * Drive 連携で人が知るべきことが起きたときの通知。
+ *
+ * 送るのは 2 つの場合だけ（仕様書 4.7.2）：
+ *   - フォルダを作り直したとき（過去画像が復旧できないため）
+ *   - 設定・権限の誤りで保存できないとき（放置すると全件失敗し続けるため）
+ *
+ * 一時的な失敗は送らない。再送で直るものを毎回鳴らすと、
+ * 本当に人が要る通知が埋もれる。
+ *
+ * ★ ここでも画像・署名付き URL は送らない。送るのは店舗名とフォルダ名まで。
+ */
+export async function notifyDriveIncident(
+  admin: SupabaseClient,
+  incident: DriveIncident,
+): Promise<DeliveryResult> {
+  const { data: settings } = await admin
+    .from("demo_limits")
+    .select("slack_enabled")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (!settings?.slack_enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      statusCode: null,
+      error: "設定で通知がオフになっています。",
+      recorded: false,
+      recordError: null,
+    };
+  }
+
+  return post(admin, "drive", null, {
+    text: `📁 Google Drive：${incident.title}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `:file_folder: *Google Drive：${incident.title}*\n${incident.detail}`,
         },
       },
     ],

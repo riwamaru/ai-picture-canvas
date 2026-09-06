@@ -121,6 +121,9 @@ export async function PATCH(request: Request) {
     patch.removal_fallback_enabled = body.removal_fallback_enabled;
   }
 
+  // ── Google Drive への保存（仕様書 F-06 / 4.7） ──
+  if (typeof body.drive_enabled === "boolean") patch.drive_enabled = body.drive_enabled;
+
   for (const key of ["slack_enabled", "slack_on_limit", "slack_include_subject"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key];
   }

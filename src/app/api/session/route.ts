@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * 左サイドバーの「当月の利用状況」・履歴一覧と、
@@ -54,6 +55,15 @@ export async function GET() {
       .gte("finished_at", startOfMonth.toISOString()),
   ]);
 
+  // Drive への保存ボタンを出すかどうか。
+  // demo_limits は authenticated から読めない（ポリシーを 1 つも作っていない）ので、
+  // ここだけ service_role で引く。返すのは真偽値 1 つで、鍵も設定値も返さない。
+  const { data: limits } = await createAdminClient()
+    .from("demo_limits")
+    .select("drive_enabled")
+    .eq("id", true)
+    .maybeSingle();
+
   const succeeded = (monthImages ?? []).filter((row) => row.status === "succeeded");
   const monthCount = succeeded.length;
   const monthCost = succeeded.reduce((sum, row) => sum + Number(row.actual_cost_usd ?? 0), 0);
@@ -63,6 +73,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    driveEnabled: limits?.drive_enabled === true,
     profile: profile
       ? {
           email: profile.email,

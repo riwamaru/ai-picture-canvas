@@ -26,10 +26,17 @@ type Slot = {
   costUsd: number | null;
   errorKind: string | null;
   errorMessage: string | null;
+  // Google Drive への同期状態（仕様書 4.7.2）。
+  // failed は「Supabase には残っているが Drive へ送れていない」状態で、画像は失われていない。
+  driveStatus: "none" | "pending" | "synced" | "failed";
+  driveViewUrl: string | null;
+  driveSyncedAt: string | null;
   url: string | null;
 };
 
 type SessionData = {
+  /** 管理者設定で Drive 保存が有効か。false なら保存ボタンを出さない。 */
+  driveEnabled: boolean;
   profile: {
     email: string;
     maxImages: number;
@@ -52,6 +59,22 @@ const PROVIDER_LABEL_SHORT: Record<"openai" | "google", string> = {
   openai: "OpenAI",
   google: "Google（Gemini）",
 };
+
+/** Drive ボタンの見た目。保存済み・未同期を色で区別する。 */
+function driveClass(status: Slot["driveStatus"]): string {
+  if (status === "synced") return " drive-synced";
+  if (status === "failed") return " drive-failed";
+  return "";
+}
+
+function driveTitle(status: Slot["driveStatus"]): string {
+  if (status === "synced") return "Drive に保存済み（押すと Drive で開きます）";
+  if (status === "failed") {
+    // ★ 「失われた」と読ませない。画像は Supabase 側に残っている（仕様書 4.7.2）。
+    return "Drive 未同期です。画像は保存されています。押すともう一度送ります";
+  }
+  return "Google Drive の共有ドライブへ保存する";
+}
 
 const STRENGTH_LABEL: Record<MakeupStrength, string> = {
   weak: "弱",
@@ -123,6 +146,9 @@ export function AppShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** 拡大表示しているスロット番号。null なら閉じている。 */
   const [zoomSlot, setZoomSlot] = useState<number | null>(null);
+
+  // Drive へ送信中のスロット。二度押しでの二重アップロードを防ぐ。
+  const [driveBusy, setDriveBusy] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // 除去コーナーでは常にマスクが要る。通常加工では除去カードを出さない。
@@ -618,8 +644,75 @@ export function AppShell({
 
     pushChat(
       "assistant",
-      `候補${slot.slot + 1}をダウンロードしました。確定処理（高解像度2K再生成・Google Drive 共有ドライブへの自動保存）は、この体験環境では未実装です。`,
+      `候補${slot.slot + 1}をダウンロードしました。確定処理のうち高解像度（2K）での再生成は、この体験環境では未実装です。Drive へ入るのはこの 1K の画像です。`,
     );
+  }
+
+  /**
+   * 選んだ 1 枚を Google Drive の共有ドライブへ保存する（仕様書 F-06 / 4.7）。
+   *
+   * ★ 失敗しても操作を止めない。仕様書 4.7.2 の 4 行目のとおり、
+   *   画像は Supabase 側に残っており「Drive 未同期」として後から再送される。
+   *   ここでエラーダイアログを出して手を止めさせると、
+   *   実際には失われていないものを失ったように見せてしまう。
+   */
+  async function saveToDrive(slot: Slot) {
+    if (!jobId || driveBusy !== null) return;
+
+    // 保存済みなら、もう一度送らずに Drive を開く（同じ画像が 2 つ並ぶのを避ける）
+    if (slot.driveStatus === "synced" && slot.driveViewUrl) {
+      window.open(slot.driveViewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setDriveBusy(slot.slot);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/drive`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slot: slot.slot }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        message?: string;
+        viewUrl?: string;
+        retryable?: boolean;
+      } | null;
+
+      if (!data) {
+        pushChat("warn", "Drive への保存結果を読み取れませんでした。");
+        return;
+      }
+
+      if (data.ok) {
+        setSlots((current) =>
+          current.map((row) =>
+            row.slot === slot.slot
+              ? {
+                  ...row,
+                  driveStatus: "synced",
+                  driveViewUrl: data.viewUrl ?? row.driveViewUrl,
+                  driveSyncedAt: new Date().toISOString(),
+                }
+              : row,
+          ),
+        );
+        pushChat("assistant", data.message ?? "Drive へ保存しました。");
+        return;
+      }
+
+      setSlots((current) =>
+        current.map((row) => (row.slot === slot.slot ? { ...row, driveStatus: "failed" } : row)),
+      );
+      pushChat("warn", data.message ?? "Drive へ保存できませんでした。");
+    } catch (error) {
+      pushChat(
+        "warn",
+        `Drive への保存を依頼できませんでした: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setDriveBusy(null);
+    }
   }
 
   async function signOut() {
@@ -1351,6 +1444,25 @@ export function AppShell({
                           >
                             <i className="fa-solid fa-floppy-disk" />
                           </button>
+                          {/* 確定＝Google Drive の共有ドライブへ保存（仕様書 F-06 / 4.7）。
+                              管理者設定でオフのときはボタンごと出さない。 */}
+                          {session?.driveEnabled && (
+                            <button
+                              className={`action-icon-btn${driveClass(slot.driveStatus)}`}
+                              title={driveTitle(slot.driveStatus)}
+                              disabled={driveBusy !== null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void saveToDrive(slot);
+                              }}
+                            >
+                              {driveBusy === slot.slot ? (
+                                <i className="fa-solid fa-spinner fa-spin" />
+                              ) : (
+                                <i className="fa-brands fa-google-drive" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1438,6 +1550,21 @@ export function AppShell({
                 >
                   <i className="fa-solid fa-floppy-disk" /> ダウンロード
                 </button>
+
+                {session?.driveEnabled && (
+                  <button
+                    className="lightbox-btn"
+                    disabled={driveBusy !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void saveToDrive(slot);
+                    }}
+                    title={driveTitle(slot.driveStatus)}
+                  >
+                    <i className="fa-brands fa-google-drive" />{" "}
+                    {slot.driveStatus === "synced" ? "Drive で開く" : "Drive へ保存"}
+                  </button>
+                )}
 
                 <button
                   className="lightbox-btn close"

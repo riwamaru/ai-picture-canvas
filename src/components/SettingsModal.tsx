@@ -32,6 +32,37 @@ type Limits = {
   slack_enabled: boolean;
   slack_on_limit: boolean;
   slack_include_subject: boolean;
+  drive_enabled: boolean;
+};
+
+type DriveState = {
+  diagnosis: {
+    configured: boolean;
+    reason: string;
+    clientEmail: string | null;
+    rootFolderId: string | null;
+  };
+  syncedCount: number;
+  pending: {
+    job_id: string;
+    slot: number;
+    drive_attempts: number;
+    drive_error: string | null;
+    drive_last_attempt_at: string | null;
+  }[];
+  folders: {
+    store_name: string;
+    folder_name: string;
+    folder_id: string | null;
+    recreate_count: number;
+    recreated_at: string | null;
+  }[];
+  orphans: {
+    id: string;
+    folder_name: string;
+    created_folder_id: string | null;
+    created_at: string;
+  }[];
 };
 
 type SlackState = {
@@ -73,6 +104,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [slack, setSlack] = useState<SlackState | null>(null);
   const [slackTest, setSlackTest] = useState<{ ok: boolean; message: string } | null>(null);
   const [slackBusy, setSlackBusy] = useState(false);
+  const [drive, setDrive] = useState<DriveState | null>(null);
+  const [driveBusy, setDriveBusy] = useState(false);
+  const [driveResult, setDriveResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const reload = useCallback(async () => {
     const response = await fetch("/api/admin/limits", { cache: "no-store" });
@@ -83,6 +117,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       setToday(data.today ?? null);
       setUsers((data.users ?? []) as UserRow[]);
       setSlack((data.slack ?? null) as SlackState | null);
+
+      // Drive の状態は別のルート（孤児フォルダの点検などで重いため）
+      const driveResponse = await fetch("/api/admin/drive", { cache: "no-store" });
+      const driveData = await driveResponse.json().catch(() => null);
+      setDrive(driveResponse.ok && driveData?.ok ? (driveData as DriveState) : null);
       return;
     }
     // 読めなかったときに 0 を並べると「上限が 0 に設定されている」と読めてしまう。
@@ -502,6 +541,180 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* ── Google Drive への保存 ── */}
+          <div className="settings-section-title">
+            確定画像の Google Drive 保存 <span className="sec-badge">F-06 / 4.7</span>
+          </div>
+
+          {drive && !drive.diagnosis.configured && (
+            <div className="invite-result error">
+              <strong>Google Drive の資格情報が未設定です。</strong>
+              <br />
+              {drive.diagnosis.reason}
+              <br />
+              <br />
+              Google Cloud でサービスアカウントを作り、JSON 鍵の <code>client_email</code> と{" "}
+              <code>private_key</code> を <code>GOOGLE_DRIVE_CLIENT_EMAIL</code> /{" "}
+              <code>GOOGLE_DRIVE_PRIVATE_KEY</code> へ、保存先フォルダの ID を{" "}
+              <code>GOOGLE_DRIVE_ROOT_FOLDER_ID</code> へ設定してください。
+            </div>
+          )}
+
+          {drive?.diagnosis.clientEmail && (
+            <div className="setting-note" style={{ marginBottom: 10 }}>
+              このアドレスを<strong>共有ドライブのメンバー（コンテンツ管理者以上）</strong>
+              に追加してください。追加しないと権限エラーで保存できません。
+              <br />
+              <code>{drive.diagnosis.clientEmail}</code>
+            </div>
+          )}
+
+          {limits && (
+            <div className="toggle-inline">
+              <span>
+                <i className="fa-brands fa-google-drive" style={{ color: "var(--primary)" }} />{" "}
+                選んだ 1 枚を共有ドライブへ保存できるようにする
+              </span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={limits.drive_enabled}
+                  onChange={(e) => void patch({ drive_enabled: e.target.checked })}
+                />
+                <span className="slider" />
+              </label>
+            </div>
+          )}
+
+          <div className="setting-note">
+            保存先は「<strong>店舗名 ／ キャスト名_入店年月</strong>」（仕様書 4.7.1）。
+            フォルダ名ではなくフォルダ ID で解決するので、キャストを改名しても過去画像との紐付けは切れません。
+            <br />
+            <strong>共有ドライブ以外へは保存できません。</strong>
+            サービスアカウントは自身のストレージ容量を持たないためです（仕様書 4.1.2）。
+            <br />
+            <br />
+            ★ この体験環境で Drive へ入るのは、6 枚と同じ <strong>1K の画像</strong>です。
+            仕様書 STEP 5 の「確定画像を高解像度で再生成してから保存する」のうち、
+            <strong>再生成は未実装</strong>です（実費のかかる生成をもう 1 回走らせることになるため）。
+          </div>
+
+          <div className="row" style={{ gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="crb-btn primary"
+              disabled={driveBusy || !drive?.diagnosis.configured}
+              onClick={async () => {
+                setDriveBusy(true);
+                setDriveResult(null);
+                const response = await fetch("/api/admin/drive", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ action: "test" }),
+                });
+                const data = await response.json().catch(() => null);
+                setDriveBusy(false);
+                setDriveResult(data ?? { ok: false, message: "応答を読めませんでした。" });
+              }}
+            >
+              {driveBusy ? "確認中…" : "接続を確認する（保存はしません）"}
+            </button>
+
+            <button
+              type="button"
+              className="crb-btn ghost"
+              disabled={driveBusy || !drive || drive.pending.length === 0}
+              onClick={async () => {
+                setDriveBusy(true);
+                setDriveResult(null);
+                const response = await fetch("/api/admin/drive", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ action: "resync" }),
+                });
+                const data = await response.json().catch(() => null);
+                setDriveBusy(false);
+                setDriveResult(data ?? { ok: false, message: "応答を読めませんでした。" });
+                await reload();
+              }}
+            >
+              未同期を今すぐ再送する
+            </button>
+          </div>
+
+          {driveResult && (
+            <div className={`invite-result${driveResult.ok ? "" : " error"}`}>
+              {driveResult.message}
+            </div>
+          )}
+
+          {drive && (
+            <div className="setting-note" style={{ marginTop: 10 }}>
+              保存済み <strong>{drive.syncedCount}</strong> 枚 ／ 未同期{" "}
+              <strong>{drive.pending.length}</strong> 枚 ／ 台帳のフォルダ{" "}
+              <strong>{drive.folders.length}</strong> 件
+            </div>
+          )}
+
+          {drive && drive.pending.length > 0 && (
+            <table className="log-table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>最終試行</th>
+                  <th>候補</th>
+                  <th>試行</th>
+                  <th>理由</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drive.pending.map((row) => (
+                  <tr key={`${row.job_id}-${row.slot}`}>
+                    <td>
+                      {row.drive_last_attempt_at
+                        ? new Date(row.drive_last_attempt_at).toLocaleString("ja-JP")
+                        : "—"}
+                    </td>
+                    <td>候補{row.slot + 1}</td>
+                    <td>{row.drive_attempts} 回</td>
+                    <td>{String(row.drive_error ?? "").slice(0, 80)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* 仕様書 4.7.2：Drive には作られたが台帳へ書けなかったフォルダを一覧する */}
+          {drive && drive.orphans.length > 0 && (
+            <>
+              <div className="invite-result error" style={{ marginTop: 12 }}>
+                <strong>台帳に登録できなかったフォルダが {drive.orphans.length} 件あります。</strong>
+                <br />
+                Drive 上には作られていますが、システムはこれを保存先として使いません。
+                中身を確認のうえ、Drive で手動で片付けてください。
+              </div>
+              <table className="log-table" style={{ marginTop: 8 }}>
+                <thead>
+                  <tr>
+                    <th>作成日時</th>
+                    <th>フォルダ名</th>
+                    <th>フォルダ ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drive.orphans.map((row) => (
+                    <tr key={row.id}>
+                      <td>{new Date(row.created_at).toLocaleString("ja-JP")}</td>
+                      <td>{row.folder_name}</td>
+                      <td>
+                        <code>{row.created_folder_id}</code>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
 
           {/* ── 招待 ── */}

@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: images } = await supabase
     .from("job_images")
     .select(
-      "slot, makeup_strength, variant, status, provider, edit_method, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
+      "slot, makeup_strength, variant, status, provider, edit_method, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message, drive_status, drive_view_url, drive_synced_at",
     )
     .eq("job_id", id)
     .order("slot", { ascending: true });
@@ -67,6 +67,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         costUsd: image.actual_cost_usd === null ? null : Number(image.actual_cost_usd),
         errorKind: image.error_kind,
         errorMessage: image.error_message,
+        // Drive への同期状態（仕様書 4.7.2）。failed は「Supabase には残っているが
+        // Drive へ送れていない」状態であり、画像そのものは失われていない。
+        driveStatus: image.drive_status as "none" | "pending" | "synced" | "failed",
+        driveViewUrl: image.drive_view_url,
+        driveSyncedAt: image.drive_synced_at,
         url: signed.data?.signedUrl ?? null,
       };
     }),
