@@ -121,8 +121,12 @@ export async function PATCH(request: Request) {
     patch.removal_fallback_enabled = body.removal_fallback_enabled;
   }
 
-  // ── Google Drive への保存（仕様書 F-06 / 4.7） ──
+  // ── 確定処理（仕様書 STEP 5 / F-06） ──
   if (typeof body.drive_enabled === "boolean") patch.drive_enabled = body.drive_enabled;
+  // ★ 2k は 1 枚あたり約 $0.85。測定目的で回すときに落とせるようにしてある。
+  if (body.final_resolution === "1k" || body.final_resolution === "2k") {
+    patch.final_resolution = body.final_resolution;
+  }
 
   for (const key of ["slack_enabled", "slack_on_limit", "slack_include_subject"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key];

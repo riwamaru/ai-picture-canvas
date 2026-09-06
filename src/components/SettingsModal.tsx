@@ -33,19 +33,21 @@ type Limits = {
   slack_on_limit: boolean;
   slack_include_subject: boolean;
   drive_enabled: boolean;
+  final_resolution: "1k" | "2k";
 };
 
 type DriveState = {
   diagnosis: {
     configured: boolean;
     reason: string;
-    clientEmail: string | null;
+    serviceAccount: string | null;
     rootFolderId: string | null;
+    oidcPresent: boolean;
   };
   syncedCount: number;
   pending: {
     job_id: string;
-    slot: number;
+    source_slot: number;
     drive_attempts: number;
     drive_error: string | null;
     drive_last_attempt_at: string | null;
@@ -543,31 +545,62 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </table>
           )}
 
-          {/* ── Google Drive への保存 ── */}
+          {/* ── 確定処理（高解像度の再生成 → Drive 保存） ── */}
           <div className="settings-section-title">
-            確定画像の Google Drive 保存 <span className="sec-badge">F-06 / 4.7</span>
+            確定処理と Google Drive 保存 <span className="sec-badge">STEP 5 / F-06</span>
+          </div>
+
+          {limits && (
+            <div className="setting-field" style={{ marginBottom: 12 }}>
+              <label>確定画像の解像度</label>
+              <select
+                value={limits.final_resolution}
+                onChange={(e) =>
+                  void patch({ final_resolution: e.target.value as "1k" | "2k" })
+                }
+              >
+                <option value="2k">2K（仕様書どおり・1 枚あたり約 $0.85）</option>
+                <option value="1k">1K（ドラフトと同じ解像度・1 枚あたり約 $0.05）</option>
+              </select>
+            </div>
+          )}
+
+          <div className="setting-note">
+            仕様書 STEP 5 は「選択された 1 枚のみを高解像度で再生成し確定画像とする」としています。
+            <strong>引き伸ばしではなく作り直し</strong>なので、選んだ候補と完全に同じ絵にはなりません。
+            <br />
+            <strong>2K は 1 枚あたり約 $0.85 です。</strong>
+            日次予算の既定 $10 では、確定 11 回で 1 日ぶんを使い切ります。
+            測定目的で回すときは 1K へ落とせます（何で作ったかは記録に必ず残ります）。
           </div>
 
           {drive && !drive.diagnosis.configured && (
-            <div className="invite-result error">
-              <strong>Google Drive の資格情報が未設定です。</strong>
+            <div className="invite-result error" style={{ marginTop: 10 }}>
+              <strong>Google Drive の設定が未完了です。</strong>
               <br />
               {drive.diagnosis.reason}
               <br />
               <br />
-              Google Cloud でサービスアカウントを作り、JSON 鍵の <code>client_email</code> と{" "}
-              <code>private_key</code> を <code>GOOGLE_DRIVE_CLIENT_EMAIL</code> /{" "}
-              <code>GOOGLE_DRIVE_PRIVATE_KEY</code> へ、保存先フォルダの ID を{" "}
+              この連携は<strong>秘密鍵を使いません</strong>。Google Cloud で Workload Identity
+              プールとプロバイダを作り、その対象者を <code>GOOGLE_DRIVE_WIF_AUDIENCE</code>、
+              なりすます相手を <code>GOOGLE_DRIVE_SERVICE_ACCOUNT</code>、保存先フォルダの ID を{" "}
               <code>GOOGLE_DRIVE_ROOT_FOLDER_ID</code> へ設定してください。
             </div>
           )}
 
-          {drive?.diagnosis.clientEmail && (
-            <div className="setting-note" style={{ marginBottom: 10 }}>
+          {drive?.diagnosis.serviceAccount && (
+            <div className="setting-note" style={{ marginTop: 10 }}>
               このアドレスを<strong>共有ドライブのメンバー（コンテンツ管理者以上）</strong>
               に追加してください。追加しないと権限エラーで保存できません。
               <br />
-              <code>{drive.diagnosis.clientEmail}</code>
+              <code>{drive.diagnosis.serviceAccount}</code>
+              <br />
+              Vercel の OIDC トークン：
+              {drive.diagnosis.oidcPresent ? (
+                <strong style={{ color: "#10b981" }}>受信できています</strong>
+              ) : (
+                <strong style={{ color: "#ef4444" }}>来ていません</strong>
+              )}
             </div>
           )}
 
@@ -575,7 +608,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <div className="toggle-inline">
               <span>
                 <i className="fa-brands fa-google-drive" style={{ color: "var(--primary)" }} />{" "}
-                選んだ 1 枚を共有ドライブへ保存できるようにする
+                確定画像を共有ドライブへ保存する
               </span>
               <label className="switch">
                 <input
@@ -595,10 +628,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <strong>共有ドライブ以外へは保存できません。</strong>
             サービスアカウントは自身のストレージ容量を持たないためです（仕様書 4.1.2）。
             <br />
-            <br />
-            ★ この体験環境で Drive へ入るのは、6 枚と同じ <strong>1K の画像</strong>です。
-            仕様書 STEP 5 の「確定画像を高解像度で再生成してから保存する」のうち、
-            <strong>再生成は未実装</strong>です（実費のかかる生成をもう 1 回走らせることになるため）。
+            Drive へ入るのは<strong>確定画像だけ</strong>です。ドラフト 6 枚は Supabase 側に留まります。
           </div>
 
           <div className="row" style={{ gap: 10, marginTop: 10 }}>
@@ -670,13 +700,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               </thead>
               <tbody>
                 {drive.pending.map((row) => (
-                  <tr key={`${row.job_id}-${row.slot}`}>
+                  <tr key={row.job_id}>
                     <td>
                       {row.drive_last_attempt_at
                         ? new Date(row.drive_last_attempt_at).toLocaleString("ja-JP")
                         : "—"}
                     </td>
-                    <td>候補{row.slot + 1}</td>
+                    <td>候補{row.source_slot + 1}</td>
                     <td>{row.drive_attempts} 回</td>
                     <td>{String(row.drive_error ?? "").slice(0, 80)}</td>
                   </tr>

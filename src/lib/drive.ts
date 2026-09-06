@@ -1,10 +1,27 @@
-import { createSign } from "node:crypto";
-
 /**
  * Google Drive（共有ドライブ）への確定画像の保存。
  * 機能仕様書 v2.1 F-06 ／ 4.7「Google Drive 連携」の実装。
  *
  * ═══════════════════════════════════════════════════════════════
+ * 【認証：秘密鍵を持たない】
+ *
+ * サービスアカウントの JSON 鍵は使わない。使えない、が正確なところで、
+ * この組織には iam.disableServiceAccountKeyCreation が効いており、
+ * 鍵の作成そのものが禁止されている（Google が新しい組織へ既定で適用するもの）。
+ *
+ * 代わりに Workload Identity 連携を使う。流れは 3 段：
+ *
+ *   ① Vercel が実行のたびに OIDC トークンを発行する（VERCEL_OIDC_TOKEN）
+ *   ② Google の STS がそれを検証し、連携用の一時トークンへ交換する
+ *   ③ そのトークンでサービスアカウントになりすまし、1 時間有効の
+ *      アクセストークンを受け取る
+ *
+ * 失効しない秘密がどこにも無い。漏れて困る値を Vercel に置かずに済む。
+ *
+ * ★ Drive 側の権限の持ち方は鍵方式と変わらない。
+ *   サービスアカウントを共有ドライブのメンバーに入れる必要は同じである。
+ *   変わるのは「そのサービスアカウントとして名乗る方法」だけ。
+ *
  * 【なぜ googleapis を入れないのか】
  *
  * 必要なのは files.list / files.create / files.get / files.update の 4 つだけで、
@@ -16,7 +33,6 @@ import { createSign } from "node:crypto";
  *
  * ★ vendor/providers/http.ts の ALLOWED_HOSTS には足さない。
  *   あちらは PoC からの移植コードで、PoC と一致していることに意味がある。
- *   Drive はデモ側だけの経路なので、allowlist もこちらに置く。
  *
  * 【共有ドライブ限定である理由】
  *
@@ -32,8 +48,9 @@ import { createSign } from "node:crypto";
 
 /** Drive 連携で送信を許可するホスト。ここに無いホストへは送らない。 */
 export const DRIVE_ALLOWED_HOSTS: readonly string[] = [
-  "oauth2.googleapis.com", // アクセストークンの取得
-  "www.googleapis.com", // Drive API v3（メタデータ・アップロードの両方）
+  "sts.googleapis.com", // ① Vercel の OIDC トークン → 連携トークン
+  "iamcredentials.googleapis.com", // ② サービスアカウントのなりすまし
+  "www.googleapis.com", // ③ Drive API v3（メタデータ・アップロードの両方）
 ];
 
 function assertDriveUrl(url: string): void {
@@ -90,39 +107,32 @@ export class DriveError extends Error {
 // ---------------------------------------------------------------------------
 
 type Credentials = {
-  clientEmail: string;
-  privateKey: string;
+  /** //iam.googleapis.com/projects/…/workloadIdentityPools/…/providers/… */
+  audience: string;
+  /** なりすます相手（…@….iam.gserviceaccount.com）。共有ドライブのメンバーに入れる。 */
+  serviceAccount: string;
+  /** 共有ドライブ内の保存先ルートフォルダ。 */
   rootFolderId: string;
 };
 
-/**
- * 環境変数から資格情報を読む。
- *
- * ★ 秘密鍵は環境変数に改行がエスケープされた 1 行で入ることが多い。
- *   そのままでは PEM として読めないので、実際の改行へ戻す。
- *   ここを忘れると "error:1E08010C:DECODER routines::unsupported" という
- *   原因の分かりにくいエラーになる。
- */
 function readCredentials(): Credentials | null {
-  const clientEmail = process.env.GOOGLE_DRIVE_CLIENT_EMAIL?.trim();
-  const rawKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+  const audience = process.env.GOOGLE_DRIVE_WIF_AUDIENCE?.trim();
+  const serviceAccount = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT?.trim();
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim();
 
-  if (!clientEmail || !rawKey || !rootFolderId) return null;
+  if (!audience || !serviceAccount || !rootFolderId) return null;
+  if (!isAudience(audience)) return null;
+  if (!serviceAccount.endsWith(".iam.gserviceaccount.com")) return null;
 
-  const privateKey = normalizePrivateKey(rawKey);
-  if (!privateKey.includes("BEGIN PRIVATE KEY")) return null;
-
-  return { clientEmail, privateKey, rootFolderId };
+  return { audience, serviceAccount, rootFolderId };
 }
 
-/** 貼り付け事故に強くする。前後の引用符を外し、エスケープされた改行を戻す。 */
-function normalizePrivateKey(raw: string): string {
-  return raw
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .split("\\n")
-    .join("\n");
+function isAudience(value: string): boolean {
+  return (
+    value.startsWith("//iam.googleapis.com/projects/") &&
+    value.includes("/workloadIdentityPools/") &&
+    value.includes("/providers/")
+  );
 }
 
 export function isDriveConfigured(): boolean {
@@ -131,83 +141,89 @@ export function isDriveConfigured(): boolean {
 
 export type DriveDiagnosis = {
   configured: boolean;
-  /** 画面に出してよい範囲の説明。鍵そのものは絶対に含めない。 */
+  /** 画面に出してよい範囲の説明。 */
   reason: string;
-  /** サービスアカウントのアドレス。共有ドライブへ招待する相手なので画面に出す。 */
-  clientEmail: string | null;
+  /** 共有ドライブへ招待する相手。画面に出す（招待の忘れが一番多い失敗のため）。 */
+  serviceAccount: string | null;
   rootFolderId: string | null;
+  /** Vercel の OIDC トークンが来ているか。連携方式ではこれが無いと何もできない。 */
+  oidcPresent: boolean;
 };
 
 /**
  * 「設定したのに認識されない」を切り分けるための診断。
- * ★ 鍵の中身は返さない。返すのは「どの環境変数が欠けているか」だけ。
+ * ★ トークンや監査値は返さない。返すのは「どの設定が欠けているか」だけ。
  */
 export function diagnoseDrive(): DriveDiagnosis {
-  const clientEmail = process.env.GOOGLE_DRIVE_CLIENT_EMAIL?.trim() ?? "";
-  const rawKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY ?? "";
+  const audience = process.env.GOOGLE_DRIVE_WIF_AUDIENCE?.trim() ?? "";
+  const serviceAccount = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT?.trim() ?? "";
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ?? "";
+  const oidcPresent = Boolean(process.env.VERCEL_OIDC_TOKEN?.trim());
+
+  const base = {
+    serviceAccount: serviceAccount || null,
+    rootFolderId: rootFolderId || null,
+    oidcPresent,
+  };
 
   const missing: string[] = [];
-  if (!clientEmail) missing.push("GOOGLE_DRIVE_CLIENT_EMAIL");
-  if (!rawKey) missing.push("GOOGLE_DRIVE_PRIVATE_KEY");
+  if (!audience) missing.push("GOOGLE_DRIVE_WIF_AUDIENCE");
+  if (!serviceAccount) missing.push("GOOGLE_DRIVE_SERVICE_ACCOUNT");
   if (!rootFolderId) missing.push("GOOGLE_DRIVE_ROOT_FOLDER_ID");
 
   if (missing.length > 0) {
+    return { ...base, configured: false, reason: `未設定の環境変数があります: ${missing.join(" / ")}` };
+  }
+
+  if (!isAudience(audience)) {
     return {
+      ...base,
       configured: false,
-      reason: `未設定の環境変数があります: ${missing.join(" / ")}`,
-      clientEmail: clientEmail || null,
-      rootFolderId: rootFolderId || null,
+      reason:
+        "GOOGLE_DRIVE_WIF_AUDIENCE の形式が違います。" +
+        "//iam.googleapis.com/projects/<番号>/locations/global/workloadIdentityPools/<プール>/providers/<プロバイダ> " +
+        "の形で設定してください（先頭のスラッシュ 2 本も必要です）。",
     };
   }
 
-  if (!normalizePrivateKey(rawKey).includes("BEGIN PRIVATE KEY")) {
+  if (!serviceAccount.endsWith(".iam.gserviceaccount.com")) {
     return {
+      ...base,
       configured: false,
       reason:
-        "GOOGLE_DRIVE_PRIVATE_KEY が秘密鍵の形式ではありません。" +
-        "サービスアカウントの JSON 鍵のうち private_key の値（BEGIN PRIVATE KEY で始まる文字列）を貼ってください。",
-      clientEmail,
-      rootFolderId,
-    };
-  }
-
-  if (!clientEmail.endsWith(".iam.gserviceaccount.com")) {
-    return {
-      configured: false,
-      reason:
-        "GOOGLE_DRIVE_CLIENT_EMAIL がサービスアカウントのアドレスではないようです" +
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT がサービスアカウントのアドレスではないようです" +
         "（…@….iam.gserviceaccount.com の形式）。",
-      clientEmail,
-      rootFolderId,
     };
   }
 
-  return { configured: true, reason: "設定済みです。", clientEmail, rootFolderId };
+  if (!oidcPresent) {
+    return {
+      ...base,
+      configured: false,
+      reason:
+        "Vercel の OIDC トークン（VERCEL_OIDC_TOKEN）が来ていません。" +
+        "Vercel のプロジェクト設定で OIDC フェデレーションを有効にしてください。" +
+        "ローカルで試す場合は `npx vercel env pull` でトークンを取得します（数時間で失効します）。",
+    };
+  }
+
+  return { ...base, configured: true, reason: "設定済みです。" };
 }
 
 // ---------------------------------------------------------------------------
-// 認証（サービスアカウント JWT → アクセストークン）
+// 認証（Vercel OIDC → STS → サービスアカウントのなりすまし）
 // ---------------------------------------------------------------------------
+
+/** Drive の読み書きに必要な権限。 */
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
 /**
- * 保存に必要な権限。
+ * アクセストークンの使い回し。Vercel の同一インスタンス内でだけ効く。
  *
- * drive.file（自分が作ったファイルだけ）では、環境変数で指定された
- * ルートフォルダ（人が Drive 上で作ったもの）を親にできないため使えない。
+ * ★ なりすましトークンは 1 時間有効で、元になる Vercel の OIDC トークンが
+ *   実行ごとに変わっても影響を受けない。だから素直にキャッシュしてよい。
  */
-const SCOPE = "https://www.googleapis.com/auth/drive";
-
-/** アクセストークンの使い回し。Vercel の同一インスタンス内でだけ効く。 */
 let cachedToken: { value: string; expiresAt: number } | null = null;
-
-function base64url(input: Buffer | string): string {
-  return Buffer.from(input)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
 
 async function accessToken(credentials: Credentials): Promise<string> {
   // 期限の 60 秒前には取り直す（処理中に切れないように）
@@ -215,66 +231,109 @@ async function accessToken(credentials: Credentials): Promise<string> {
     return cachedToken.value;
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = base64url(
-    JSON.stringify({
-      iss: credentials.clientEmail,
-      scope: SCOPE,
-      aud: "https://oauth2.googleapis.com/token",
-      iat: now,
-      exp: now + 3600,
-    }),
-  );
-
-  let signature: string;
-  try {
-    const signer = createSign("RSA-SHA256");
-    signer.update(`${header}.${claims}`);
-    signature = base64url(signer.sign(credentials.privateKey));
-  } catch (cause) {
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim();
+  if (!oidcToken) {
     throw new DriveError(
       "config",
-      `秘密鍵で署名できませんでした。GOOGLE_DRIVE_PRIVATE_KEY の形式を確認してください: ${describe(cause)}`,
+      "Vercel の OIDC トークンがありません。" +
+        "Vercel のプロジェクト設定で OIDC フェデレーションを有効にしてください" +
+        "（ローカルでは `npx vercel env pull` で取得できます。数時間で失効します）。",
     );
   }
 
-  const url = "https://oauth2.googleapis.com/token";
+  // ── ① Vercel の OIDC トークン → Google の連携トークン ──
+  const federated = await exchangeToken(credentials, oidcToken);
+
+  // ── ② 連携トークン → サービスアカウントのアクセストークン ──
+  const impersonated = await impersonate(credentials, federated);
+
+  cachedToken = impersonated;
+  return impersonated.value;
+}
+
+async function exchangeToken(credentials: Credentials, oidcToken: string): Promise<string> {
+  const url = "https://sts.googleapis.com/v1/token";
   assertDriveUrl(url);
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${header}.${claims}.${signature}`,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      grantType: "urn:ietf:params:oauth:grant-type:token-exchange",
+      audience: credentials.audience,
+      scope: "https://www.googleapis.com/auth/cloud-platform",
+      requestedTokenType: "urn:ietf:params:oauth:token-type:access_token",
+      subjectToken: oidcToken,
+      subjectTokenType: "urn:ietf:params:oauth:token-type:jwt",
     }),
   }).catch((cause) => {
-    throw new DriveError("infra", `トークンの取得に失敗しました: ${describe(cause)}`);
+    throw new DriveError("infra", `連携トークンの取得に失敗しました: ${describe(cause)}`);
   });
 
   const text = await response.text();
   if (!response.ok) {
-    // invalid_grant はほぼ「鍵が失効している」「時計がずれている」「アドレスが違う」
+    // ここで落ちる原因はほぼ設定：プール／プロバイダの設定、発行者 URL、
+    // 対象者（audience）、属性条件のいずれかが噛み合っていない。
     throw new DriveError(
-      response.status === 400 || response.status === 401 ? "config" : "infra",
-      `トークンを取得できませんでした（HTTP ${response.status}）: ${truncate(text)}`,
+      response.status >= 500 ? "infra" : "config",
+      `Vercel のトークンを Google 側で交換できませんでした（HTTP ${response.status}）。` +
+        "Workload Identity プロバイダの発行者 URL・対象者・属性条件をご確認ください。" +
+        `／応答: ${truncate(text)}`,
       response.status,
     );
   }
 
-  const json = JSON.parse(text) as { access_token?: string; expires_in?: number };
+  const json = JSON.parse(text) as { access_token?: string };
   if (!json.access_token) {
-    throw new DriveError("config", `応答にトークンが含まれていません: ${truncate(text)}`);
+    throw new DriveError("config", `連携トークンが応答に含まれていません: ${truncate(text)}`);
   }
-
-  cachedToken = {
-    value: json.access_token,
-    expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000,
-  };
-  return cachedToken.value;
+  return json.access_token;
 }
 
+async function impersonate(
+  credentials: Credentials,
+  federatedToken: string,
+): Promise<{ value: string; expiresAt: number }> {
+  const url =
+    "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" +
+    `${encodeURIComponent(credentials.serviceAccount)}:generateAccessToken`;
+  assertDriveUrl(url);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${federatedToken}`,
+    },
+    body: JSON.stringify({ scope: [DRIVE_SCOPE], lifetime: "3600s" }),
+  }).catch((cause) => {
+    throw new DriveError("infra", `アクセストークンの取得に失敗しました: ${describe(cause)}`);
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    // 403 はほぼ「なりすましの許可が無い」。プールの主体へ
+    // roles/iam.workloadIdentityUser を付け忘れているのが定番。
+    throw new DriveError(
+      response.status >= 500 ? "infra" : "config",
+      response.status === 403
+        ? "サービスアカウントになりすます権限がありません。" +
+          `${credentials.serviceAccount} に対して、Workload Identity プールの主体へ ` +
+          "「Workload Identity ユーザー」（roles/iam.workloadIdentityUser）を付与してください。" +
+          `／応答: ${truncate(text)}`
+        : `アクセストークンを取得できませんでした（HTTP ${response.status}）: ${truncate(text)}`,
+      response.status,
+    );
+  }
+
+  const json = JSON.parse(text) as { accessToken?: string; expireTime?: string };
+  if (!json.accessToken) {
+    throw new DriveError("config", `アクセストークンが応答に含まれていません: ${truncate(text)}`);
+  }
+
+  const expiresAt = json.expireTime ? Date.parse(json.expireTime) : Date.now() + 3600_000;
+  return { value: json.accessToken, expiresAt };
+}
 // ---------------------------------------------------------------------------
 // Drive API の呼び出し
 // ---------------------------------------------------------------------------

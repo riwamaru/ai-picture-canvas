@@ -37,8 +37,8 @@ export async function GET() {
 
   const [{ data: pending }, { data: folders }, orphans] = await Promise.all([
     admin
-      .from("job_images")
-      .select("job_id, slot, drive_status, drive_attempts, drive_error, drive_last_attempt_at")
+      .from("final_images")
+      .select("job_id, source_slot, drive_status, drive_attempts, drive_error, drive_last_attempt_at")
       .eq("drive_status", "failed")
       .order("drive_last_attempt_at", { ascending: false })
       .limit(20),
@@ -51,8 +51,8 @@ export async function GET() {
   ]);
 
   const { count: syncedCount } = await admin
-    .from("job_images")
-    .select("slot", { count: "exact", head: true })
+    .from("final_images")
+    .select("id", { count: "exact", head: true })
     .eq("drive_status", "synced");
 
   return NextResponse.json({

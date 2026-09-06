@@ -26,8 +26,24 @@ type Slot = {
   costUsd: number | null;
   errorKind: string | null;
   errorMessage: string | null;
-  // Google Drive への同期状態（仕様書 4.7.2）。
-  // failed は「Supabase には残っているが Drive へ送れていない」状態で、画像は失われていない。
+  url: string | null;
+};
+
+/**
+ * 確定画像（仕様書 STEP 5）。選んだ 1 枚を高解像度で作り直したもの。
+ * Drive へ入るのはこれだけで、ドラフト 6 枚は Supabase 側に留まる。
+ */
+type FinalImage = {
+  sourceSlot: number;
+  status: "queued" | "running" | "succeeded" | "failed";
+  resolution: "1k" | "2k";
+  provider: "openai" | "google" | null;
+  editMethod: "inpaint" | "semantic_mask" | "instruct" | null;
+  costUsd: number | null;
+  latencyMs: number | null;
+  errorKind: string | null;
+  errorMessage: string | null;
+  // failed は「Supabase には残っているが Drive へ送れていない」状態。画像は失われていない。
   driveStatus: "none" | "pending" | "synced" | "failed";
   driveViewUrl: string | null;
   driveSyncedAt: string | null;
@@ -35,8 +51,12 @@ type Slot = {
 };
 
 type SessionData = {
-  /** 管理者設定で Drive 保存が有効か。false なら保存ボタンを出さない。 */
+  /** 管理者設定で Drive 保存が有効か。false でも確定（高解像度の再生成）は行える。 */
   driveEnabled: boolean;
+  /** 確定画像の解像度。 */
+  finalResolution: "1k" | "2k";
+  /** 確定 1 回の実費の見込み（USD）。押す前に見せる。 */
+  finalUnitUsd: number;
   profile: {
     email: string;
     maxImages: number;
@@ -60,20 +80,34 @@ const PROVIDER_LABEL_SHORT: Record<"openai" | "google", string> = {
   google: "Google（Gemini）",
 };
 
-/** Drive ボタンの見た目。保存済み・未同期を色で区別する。 */
-function driveClass(status: Slot["driveStatus"]): string {
-  if (status === "synced") return " drive-synced";
-  if (status === "failed") return " drive-failed";
-  return "";
+/** そのスロットが確定済みか。 */
+function isConfirmed(final: FinalImage | null, slot: number): boolean {
+  return final?.status === "succeeded" && final.sourceSlot === slot;
 }
 
-function driveTitle(status: Slot["driveStatus"]): string {
-  if (status === "synced") return "Drive に保存済み（押すと Drive で開きます）";
-  if (status === "failed") {
-    // ★ 「失われた」と読ませない。画像は Supabase 側に残っている（仕様書 4.7.2）。
-    return "Drive 未同期です。画像は保存されています。押すともう一度送ります";
+function confirmClass(final: FinalImage | null, slot: number): string {
+  if (!isConfirmed(final, slot)) return "";
+  // Drive 未同期でも確定そのものは成功している。色で区別する。
+  return final!.driveStatus === "failed" ? " drive-failed" : " drive-synced";
+}
+
+function confirmTitle(final: FinalImage | null, slot: number, session: SessionData | null): string {
+  if (isConfirmed(final, slot)) {
+    if (final!.driveStatus === "synced") return "確定済み（押すと Drive で開きます）";
+    if (final!.driveStatus === "failed") {
+      // ★ 「失われた」と読ませない。画像は Supabase 側に残っている（仕様書 4.7.2）。
+      return "確定済み。Drive へは未同期です（画像は保存されています。あとから自動で再送します）";
+    }
+    return "確定済み";
   }
-  return "Google Drive の共有ドライブへ保存する";
+  if (final?.status === "succeeded") {
+    return `別の候補（候補${final.sourceSlot + 1}）が確定済みです。この回の確定は 1 枚だけです`;
+  }
+  const price = session?.finalUnitUsd;
+  const resolution = session?.finalResolution?.toUpperCase() ?? "2K";
+  return price === undefined
+    ? `この 1 枚を ${resolution} で作り直して確定する`
+    : `この 1 枚を ${resolution} で作り直して確定する（実費の見込み 約 $${price.toFixed(2)}）`;
 }
 
 const STRENGTH_LABEL: Record<MakeupStrength, string> = {
@@ -147,8 +181,9 @@ export function AppShell({
   /** 拡大表示しているスロット番号。null なら閉じている。 */
   const [zoomSlot, setZoomSlot] = useState<number | null>(null);
 
-  // Drive へ送信中のスロット。二度押しでの二重アップロードを防ぐ。
-  const [driveBusy, setDriveBusy] = useState<number | null>(null);
+  // 確定処理（高解像度の再生成 → Drive 保存）。二度押しでの二重課金を防ぐ。
+  const [confirming, setConfirming] = useState(false);
+  const [finalImage, setFinalImage] = useState<FinalImage | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // 除去コーナーでは常にマスクが要る。通常加工では除去カードを出さない。
@@ -211,6 +246,7 @@ export function AppShell({
       if (stop || !response.ok || !data?.ok) return;
 
       setSlots(data.slots as Slot[]);
+      setFinalImage((data.final ?? null) as FinalImage | null);
 
       const pending = (data.slots as Slot[]).some(
         (s) => s.status === "queued" || s.status === "running",
@@ -236,6 +272,7 @@ export function AppShell({
     setMode(next);
     setJobId(null);
     setSlots([]);
+    setFinalImage(null);
     setSelectedSlot(null);
     setGateMessage(null);
     setModerationWarning(null);
@@ -515,6 +552,7 @@ export function AppShell({
     setRegistering(true);
     setSelectedSlot(null);
     setSlots([]);
+    setFinalImage(null);
 
     const form = new FormData();
     form.set("source", file);
@@ -591,6 +629,7 @@ export function AppShell({
     setRights(false);
     setJobId(null);
     setSlots([]);
+    setFinalImage(null);
     setSelectedSlot(null);
     setManualTitle(null);
     setSessionRuns(0);
@@ -644,30 +683,46 @@ export function AppShell({
 
     pushChat(
       "assistant",
-      `候補${slot.slot + 1}をダウンロードしました。確定処理のうち高解像度（2K）での再生成は、この体験環境では未実装です。Drive へ入るのはこの 1K の画像です。`,
+      `候補${slot.slot + 1}（1K のドラフト）をダウンロードしました。高解像度の確定画像が必要な場合は「確定」を押してください。`,
     );
   }
 
   /**
-   * 選んだ 1 枚を Google Drive の共有ドライブへ保存する（仕様書 F-06 / 4.7）。
+   * 確定処理（仕様書 STEP 5）。
+   *   ① 選んだ 1 枚を高解像度で作り直す
+   *   ② 共有ドライブへ保存する
+   *   ③ 使用モデル・推定コスト・処理時間を記録する
    *
-   * ★ 失敗しても操作を止めない。仕様書 4.7.2 の 4 行目のとおり、
-   *   画像は Supabase 側に残っており「Drive 未同期」として後から再送される。
-   *   ここでエラーダイアログを出して手を止めさせると、
-   *   実際には失われていないものを失ったように見せてしまう。
+   * ★ 実費が発生する操作なので、押す前に金額を見せて確認を取る。
+   * ★ Drive への保存だけが失敗しても、確定そのものは成功として扱う。
+   *   画像は Supabase 側に残っており、未同期として後から再送される（仕様書 4.7.2）。
    */
-  async function saveToDrive(slot: Slot) {
-    if (!jobId || driveBusy !== null) return;
+  async function confirmSelection(slot: Slot) {
+    if (!jobId || confirming) return;
 
-    // 保存済みなら、もう一度送らずに Drive を開く（同じ画像が 2 つ並ぶのを避ける）
-    if (slot.driveStatus === "synced" && slot.driveViewUrl) {
-      window.open(slot.driveViewUrl, "_blank", "noopener,noreferrer");
+    // 保存済みなら、もう一度作らずに Drive を開く（二重課金と重複ファイルを避ける）
+    if (finalImage?.status === "succeeded" && finalImage.driveViewUrl) {
+      window.open(finalImage.driveViewUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
-    setDriveBusy(slot.slot);
+    if (finalImage?.status !== "succeeded") {
+      const price = session?.finalUnitUsd ?? null;
+      const yen = price === null ? null : Math.round(price * 150).toLocaleString("ja-JP");
+      const ok = window.confirm(
+        `候補${slot.slot + 1}を確定します。\n\n` +
+          `${session?.finalResolution?.toUpperCase() ?? "2K"} で作り直してから Drive へ保存します。` +
+          (price === null ? "" : `\n実費の見込み：約 $${price.toFixed(2)}（約${yen}円）`) +
+          "\n\n★ 引き伸ばしではなく作り直しのため、候補と完全に同じ絵にはなりません。",
+      );
+      if (!ok) return;
+    }
+
+    setConfirming(true);
+    pushChat("assistant", `候補${slot.slot + 1}の確定処理を始めました。高解像度で作り直しています…`);
+
     try {
-      const response = await fetch(`/api/jobs/${jobId}/drive`, {
+      const response = await fetch(`/api/jobs/${jobId}/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ slot: slot.slot }),
@@ -675,44 +730,42 @@ export function AppShell({
       const data = (await response.json().catch(() => null)) as {
         ok?: boolean;
         message?: string;
-        viewUrl?: string;
-        retryable?: boolean;
+        reason?: string;
+        drive?: { ok: boolean; viewUrl: string | null } | null;
       } | null;
 
       if (!data) {
-        pushChat("warn", "Drive への保存結果を読み取れませんでした。");
+        pushChat("warn", "確定処理の結果を読み取れませんでした。");
         return;
       }
 
-      if (data.ok) {
-        setSlots((current) =>
-          current.map((row) =>
-            row.slot === slot.slot
-              ? {
-                  ...row,
-                  driveStatus: "synced",
-                  driveViewUrl: data.viewUrl ?? row.driveViewUrl,
-                  driveSyncedAt: new Date().toISOString(),
-                }
-              : row,
-          ),
-        );
-        pushChat("assistant", data.message ?? "Drive へ保存しました。");
+      if (!data.ok) {
+        pushChat("warn", data.message ?? "確定できませんでした。");
         return;
       }
 
-      setSlots((current) =>
-        current.map((row) => (row.slot === slot.slot ? { ...row, driveStatus: "failed" } : row)),
-      );
-      pushChat("warn", data.message ?? "Drive へ保存できませんでした。");
+      pushChat("assistant", data.message ?? "確定しました。");
+      // 記録は DB を正とする。作り直した画像・Drive の状態はポーリングで取り直す。
+      await refreshJob();
+      void reloadSession();
     } catch (error) {
       pushChat(
         "warn",
-        `Drive への保存を依頼できませんでした: ${error instanceof Error ? error.message : String(error)}`,
+        `確定処理を依頼できませんでした: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
-      setDriveBusy(null);
+      setConfirming(false);
     }
+  }
+
+  /** ジョブの状態を 1 回だけ取り直す（確定処理の後に使う）。 */
+  async function refreshJob() {
+    if (!jobId) return;
+    const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) return;
+    setSlots(data.slots as Slot[]);
+    setFinalImage((data.final ?? null) as FinalImage | null);
   }
 
   async function signOut() {
@@ -1444,25 +1497,25 @@ export function AppShell({
                           >
                             <i className="fa-solid fa-floppy-disk" />
                           </button>
-                          {/* 確定＝Google Drive の共有ドライブへ保存（仕様書 F-06 / 4.7）。
-                              管理者設定でオフのときはボタンごと出さない。 */}
-                          {session?.driveEnabled && (
-                            <button
-                              className={`action-icon-btn${driveClass(slot.driveStatus)}`}
-                              title={driveTitle(slot.driveStatus)}
-                              disabled={driveBusy !== null}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void saveToDrive(slot);
-                              }}
-                            >
-                              {driveBusy === slot.slot ? (
-                                <i className="fa-solid fa-spinner fa-spin" />
-                              ) : (
-                                <i className="fa-brands fa-google-drive" />
-                              )}
-                            </button>
-                          )}
+                          {/* 確定（仕様書 STEP 5）：高解像度で作り直して Drive へ保存する。
+                              実費がかかるので、押す前に金額を確認させる。 */}
+                          <button
+                            className={`action-icon-btn${confirmClass(finalImage, slot.slot)}`}
+                            title={confirmTitle(finalImage, slot.slot, session)}
+                            disabled={confirming}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void confirmSelection(slot);
+                            }}
+                          >
+                            {confirming ? (
+                              <i className="fa-solid fa-spinner fa-spin" />
+                            ) : isConfirmed(finalImage, slot.slot) ? (
+                              <i className="fa-solid fa-circle-check" />
+                            ) : (
+                              <i className="fa-solid fa-star" />
+                            )}
+                          </button>
                         </div>
                       </div>
                     );
@@ -1470,6 +1523,75 @@ export function AppShell({
                 </div>
               </div>
             </div>
+
+            {/* ── 確定画像（仕様書 STEP 5）── */}
+            {finalImage && (
+              <div className={`final-panel${finalImage.status === "failed" ? " failed" : ""}`}>
+                <div className="final-head">
+                  <i className="fa-solid fa-star" />
+                  <span>
+                    確定画像（候補{finalImage.sourceSlot + 1}を{" "}
+                    {finalImage.resolution.toUpperCase()} で作り直したもの）
+                  </span>
+                </div>
+
+                {finalImage.status === "failed" ? (
+                  <div className="final-body">
+                    <p className="final-error">
+                      確定画像を作れませんでした
+                      {finalImage.errorKind === "policy" && "（内容の判定により断られました）"}。
+                      <br />
+                      {finalImage.errorMessage}
+                    </p>
+                  </div>
+                ) : finalImage.status !== "succeeded" ? (
+                  <div className="final-body">
+                    <p>高解像度で作り直しています…</p>
+                  </div>
+                ) : (
+                  <div className="final-body">
+                    {finalImage.url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={finalImage.url} alt="確定画像" className="final-thumb" />
+                    )}
+                    <div className="final-meta">
+                      <div>
+                        {finalImage.provider && PROVIDER_LABEL_SHORT[finalImage.provider]}
+                        {finalImage.costUsd !== null &&
+                          ` ／ 実費 $${finalImage.costUsd.toFixed(3)}`}
+                        {finalImage.latencyMs !== null &&
+                          ` ／ ${(finalImage.latencyMs / 1000).toFixed(1)} 秒`}
+                      </div>
+
+                      {/* ★ Drive 未同期を「失敗」と読ませない。
+                          画像は Supabase 側に残っており、あとから自動で再送される（仕様書 4.7.2）。 */}
+                      <div className="final-drive">
+                        {!session?.driveEnabled ? (
+                          <span className="final-drive-off">
+                            Drive 保存は管理者設定でオフです
+                          </span>
+                        ) : finalImage.driveStatus === "synced" && finalImage.driveViewUrl ? (
+                          <a
+                            href={finalImage.driveViewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="final-drive-link"
+                          >
+                            <i className="fa-brands fa-google-drive" /> Drive に保存済み（開く）
+                          </a>
+                        ) : finalImage.driveStatus === "failed" ? (
+                          <span className="final-drive-pending">
+                            Drive 未同期（画像は保存されています。あとから自動で再送します）
+                          </span>
+                        ) : (
+                          <span className="final-drive-pending">Drive へ送信中…</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 個別やり直しチャット */}
             <div className={`chat-section${chatExpanded ? " expanded" : ""}`}>
@@ -1551,20 +1673,18 @@ export function AppShell({
                   <i className="fa-solid fa-floppy-disk" /> ダウンロード
                 </button>
 
-                {session?.driveEnabled && (
-                  <button
-                    className="lightbox-btn"
-                    disabled={driveBusy !== null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void saveToDrive(slot);
-                    }}
-                    title={driveTitle(slot.driveStatus)}
-                  >
-                    <i className="fa-brands fa-google-drive" />{" "}
-                    {slot.driveStatus === "synced" ? "Drive で開く" : "Drive へ保存"}
-                  </button>
-                )}
+                <button
+                  className="lightbox-btn"
+                  disabled={confirming}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void confirmSelection(slot);
+                  }}
+                  title={confirmTitle(finalImage, slot.slot, session)}
+                >
+                  <i className="fa-solid fa-star" />{" "}
+                  {isConfirmed(finalImage, slot.slot) ? "確定済み" : "この 1 枚で確定"}
+                </button>
 
                 <button
                   className="lightbox-btn close"

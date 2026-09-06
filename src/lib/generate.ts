@@ -12,7 +12,7 @@ import { OpenAIProvider, pixelsOf } from "./vendor/providers/openai";
 import { GoogleProvider } from "./vendor/providers/google";
 import { classifyError } from "./vendor/providers/errors";
 import { estimateCost } from "./vendor/providers/pricing";
-import type { ImageProvider } from "./vendor/providers/types";
+import type { ImageProvider, Resolution } from "./vendor/providers/types";
 import { buildPrompt, type CategoryInput } from "./vendor/prompts/build";
 import { MAKEUP_STRENGTHS, type CategoryId, type MakeupStrength } from "./vendor/prompts/categories";
 import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
@@ -87,16 +87,26 @@ export type FallbackPolicy = {
   onPolicy: boolean;
 };
 
-/** 1 枚あたりの推定コスト（USD）。 */
-export function estimateOne(provider: ProviderName, requiresMask: boolean): number {
+/**
+ * 1 枚あたりの推定コスト（USD）。
+ *
+ * ★ 解像度を引数に取る。ドラフト 6 枚は 1k、確定画像は 2k で、単価が桁違いに違う
+ *   （gpt-image-2 の quality:high は 1024x1024 で $0.211、2048x2048 はその 4 倍の画素数）。
+ *   既定を DEMO_RESOLUTION にしてあるので、ドラフト側の呼び出しは変わらない。
+ */
+export function estimateOne(
+  provider: ProviderName,
+  requiresMask: boolean,
+  resolution: Resolution = DEMO_RESOLUTION,
+): number {
   const mode = requiresMask ? "inpaint" : "instruct";
   if (provider === "openai") {
-    const setting = OPENAI_CONFIG.resolution[DEMO_RESOLUTION];
+    const setting = OPENAI_CONFIG.resolution[resolution];
     return estimateCost({
       provider: "openai",
       modelId: OPENAI_CONFIG.modelId,
       mode,
-      resolution: DEMO_RESOLUTION,
+      resolution,
       outputPixels: pixelsOf(setting.size),
       quality: setting.quality,
       referenceCount: 0,
@@ -106,8 +116,8 @@ export function estimateOne(provider: ProviderName, requiresMask: boolean): numb
     provider: "google",
     modelId: GOOGLE_CONFIG.modelId,
     mode,
-    resolution: DEMO_RESOLUTION,
-    outputPixels: GOOGLE_CONFIG.resolution[DEMO_RESOLUTION].pixels,
+    resolution,
+    outputPixels: GOOGLE_CONFIG.resolution[resolution].pixels,
     quality: "medium",
     referenceCount: 0,
   });
@@ -121,10 +131,17 @@ export function estimateOne(provider: ProviderName, requiresMask: boolean): numb
  *   ただし予約の時点でどちらが成功するか分からないので、
  *   **高いほう**で押さえておく。実額は settle_generation で差し替える。
  */
-export function reservationUnitUsd(policy: FallbackPolicy, requiresMask: boolean): number {
+export function reservationUnitUsd(
+  policy: FallbackPolicy,
+  requiresMask: boolean,
+  resolution: Resolution = DEMO_RESOLUTION,
+): number {
   const candidates = policy.enabled
-    ? [estimateOne(policy.primary, requiresMask), estimateOne(policy.fallback, requiresMask)]
-    : [estimateOne(policy.primary, requiresMask)];
+    ? [
+        estimateOne(policy.primary, requiresMask, resolution),
+        estimateOne(policy.fallback, requiresMask, resolution),
+      ]
+    : [estimateOne(policy.primary, requiresMask, resolution)];
   return Math.max(...candidates);
 }
 
@@ -137,14 +154,14 @@ export function buildSlotPrompt(selection: Selection, spec: SlotSpec) {
   });
 }
 
-function createProvider(name: ProviderName, keys: ProviderKeys): ImageProvider | null {
+export function createProvider(name: ProviderName, keys: ProviderKeys): ImageProvider | null {
   if (name === "openai") {
     return keys.openai ? new OpenAIProvider(OPENAI_CONFIG, keys.openai, sharpMaskCodec) : null;
   }
   return keys.google ? new GoogleProvider(GOOGLE_CONFIG, keys.google) : null;
 }
 
-type ProviderKeys = { openai: string | undefined; google: string | undefined };
+export type ProviderKeys = { openai: string | undefined; google: string | undefined };
 
 type ProcessInput = {
   admin: SupabaseClient;
