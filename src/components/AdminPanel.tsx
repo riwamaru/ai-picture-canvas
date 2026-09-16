@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { MastersSection } from "./MastersSection";
 
 /**
- * 管理者向けシステム設定。確定 UI（index.html）のモーダルをそのまま移植した。
+ * 管理者向けシステム設定（/admin）。確定 UI（index.html）のモーダルを、
+ * 節が増えたので左メニューつきのページへ組み替えた。中身の各節はモーダル時代のまま。
  *
  * モックとの違いは 2 点：
  *
@@ -86,7 +88,33 @@ type UserRow = {
   last_call_at: string | null;
 };
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+type SectionId = "limits" | "providers" | "masters" | "users" | "slack" | "drive" | "security";
+
+/** 左のメニュー。カテゴリごとに 1 画面。 */
+const SECTIONS: { id: SectionId; icon: string; label: string; hint: string }[] = [
+  { id: "limits", icon: "fa-gauge-high", label: "上限・ブレーキ", hint: "停止スイッチ・予算・枚数・間隔" },
+  { id: "providers", icon: "fa-microchip", label: "生成・モデル", hint: "OpenAI / Google・フォールバック・解像度" },
+  { id: "masters", icon: "fa-store", label: "店舗・キャスト", hint: "台帳の追加・編集・削除" },
+  { id: "users", icon: "fa-users", label: "利用者・招待", hint: "招待・枚数上限・利用状況" },
+  { id: "slack", icon: "fa-bell", label: "Slack 通知", hint: "生成ログ・上限到達の通知" },
+  { id: "drive", icon: "fa-folder-tree", label: "確定・Drive 保存", hint: "2K 再生成・共有ドライブ・未同期" },
+  { id: "security", icon: "fa-shield-halved", label: "セキュリティ", hint: "データ保護の方針" },
+];
+
+export function AdminPanel() {
+  const [active, setActive] = useState<SectionId>("limits");
+
+  // URL のハッシュで節を覚える（ブックマーク・戻るに効く）
+  useEffect(() => {
+    const onHash = () => {
+      const id = window.location.hash.replace("#", "");
+      if (SECTIONS.some((s) => s.id === id)) setActive(id as SectionId);
+    };
+    onHash();
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const [limits, setLimits] = useState<Limits | null>(null);
   const [today, setToday] = useState<{ day: string; images: number; cost_usd: string } | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -177,27 +205,62 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const current = SECTIONS.find((s) => s.id === active)!;
+
   return (
-    <div className="modal-overlay" style={{ display: "flex" }}>
-      <div className="modal-card">
-        <div className="modal-header">
-          <h3>
-            <i className="fa-solid fa-screwdriver-wrench" style={{ color: "var(--primary)" }} /> AI
-            Canvas 管理者システム設定
-          </h3>
-          <button className="modal-close-btn" onClick={onClose}>
-            <i className="fa-solid fa-xmark" />
-          </button>
+    <div className="admin-page">
+      <aside className="admin-nav">
+        <div className="admin-nav-head">
+          <i className="fa-solid fa-screwdriver-wrench" style={{ color: "var(--primary)" }} />
+          <div>
+            <div className="admin-nav-title">管理者向けシステム設定</div>
+            <div className="admin-nav-sub">AI Canvas 体験環境</div>
+          </div>
+        </div>
+        <nav>
+          {SECTIONS.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className={`admin-nav-item${active === section.id ? " active" : ""}`}
+              onClick={() => setActive(section.id)}
+            >
+              <i className={`fa-solid ${section.icon}`} />
+              <span>
+                <span className="admin-nav-label">{section.label}</span>
+                <span className="admin-nav-hint">{section.hint}</span>
+              </span>
+            </a>
+          ))}
+        </nav>
+        <a href="/" className="admin-back">
+          <i className="fa-solid fa-arrow-left" /> 加工画面へ戻る
+        </a>
+      </aside>
+
+      <main className="admin-main">
+        <div className="admin-main-head">
+          <h2>
+            <i className={`fa-solid ${current.icon}`} /> {current.label}
+          </h2>
+          <span className="admin-main-hint">
+            {current.hint}
+            {saving && "　保存中…"}
+            {saved && !saving && "　✓ 保存しました"}
+          </span>
         </div>
 
-        <div className="settings-tab-content">
+        <div className="settings-tab-content admin-content">
           {loadError && (
             <div className="invite-result error" style={{ marginBottom: 14 }}>
               {loadError}
             </div>
           )}
 
-          {/* ── 緊急停止 ── */}
+          
+          {active === "limits" && (
+            <>
+{/* ── 緊急停止 ── */}
           <div className="settings-section-title">
             生成の停止スイッチ <span className="sec-badge">体験環境</span>
           </div>
@@ -303,7 +366,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             （上限に達すると生成を受け付けません）。
           </div>
 
-          {/* ── プロバイダとフォールバック ── */}
+                      </>
+          )}
+
+          {active === "providers" && (
+            <>
+{/* ── プロバイダとフォールバック ── */}
           <div className="settings-section-title">
             画像生成プロバイダとフォールバック <span className="sec-badge">F-16</span>
           </div>
@@ -428,7 +496,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             指定は OpenAI・Google のいずれも非対応のため、案 1 の差分はモデル固有のゆらぎのみに依存します。
           </div>
 
-          {/* ── Slack 通知 ── */}
+                      </>
+          )}
+
+          {active === "slack" && (
+            <>
+{/* ── Slack 通知 ── */}
           <div className="settings-section-title">
             Slack への生成ログ通知 <span className="sec-badge">F-10</span>
           </div>
@@ -555,7 +628,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </table>
           )}
 
-          {/* ── 確定処理（高解像度の再生成 → Drive 保存） ── */}
+                      </>
+          )}
+
+          {active === "drive" && (
+            <>
+{/* ── 確定処理（高解像度の再生成 → Drive 保存） ── */}
           <div className="settings-section-title">
             確定処理と Google Drive 保存 <span className="sec-badge">STEP 5 / F-06</span>
           </div>
@@ -757,7 +835,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </>
           )}
 
-          {/* ── 招待 ── */}
+                      </>
+          )}
+
+          {active === "users" && (
+            <>
+{/* ── 招待 ── */}
           <div className="settings-section-title">
             利用者の招待 <span className="sec-badge">体験環境</span>
           </div>
@@ -858,7 +941,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </tbody>
           </table>
 
-          {/* ── セキュリティ ── */}
+                      </>
+          )}
+
+          {active === "security" && (
+            <>
+{/* ── セキュリティ ── */}
           <div className="settings-section-title">
             セキュリティ・データ保護ポリシー <span className="sec-badge">4.5</span>
           </div>
@@ -886,12 +974,16 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               <span className="pi-tag">未実装</span>
             </div>
             <div className="policy-item">
-              <i className="fa-solid fa-ban" style={{ color: "#94a3b8" }} /> Google Drive
-              共有ドライブ保存<span className="pi-tag">未実装</span>
+              <i className="fa-brands fa-google-drive ok" /> Google Drive
+              共有ドライブ保存（鍵を持たない Workload Identity 連携）<span className="pi-tag">有効</span>
             </div>
           </div>
+            </>
+          )}
+
+          {active === "masters" && <MastersSection />}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

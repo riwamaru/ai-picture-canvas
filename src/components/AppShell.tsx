@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MaskTool, type MaskHandle } from "./MaskTool";
-import { SettingsModal } from "./SettingsModal";
 import type { Catalog, CategoryId } from "@/lib/catalog";
 import type { MakeupStrength } from "@/lib/catalog";
 
@@ -195,8 +194,11 @@ function strengthLabel(strength: MakeupStrength, slots: Slot[]): string {
   return strength === "medium" ? "強" : STRENGTH_LABEL[strength];
 }
 
-/** 確定 UI の店舗・キャストの候補（datalist）。 */
-const STORE_OPTIONS = ["THE ESPERANZA", "ESPERANZA ANNEX", "クラブ ピア", "いたずらBUNNYちゃん"];
+/** 店舗・キャストの台帳（/api/masters）。管理画面から編集できる。 */
+type Masters = {
+  stores: { id: string; name: string }[];
+  casts: { id: string; storeId: string; name: string; joinedYm: string | null; label: string }[];
+};
 
 export function AppShell({
   catalog,
@@ -220,7 +222,7 @@ export function AppShell({
   // ── STEP 0 ──
   const [storeName, setStoreName] = useState("");
   const [castName, setCastName] = useState("");
-  const [castOptions, setCastOptions] = useState(["アリス", "マイ", "サクラ", "レナ", "ハルカ"]);
+  const [masters, setMasters] = useState<Masters>({ stores: [], casts: [] });
   const [showCastRegister, setShowCastRegister] = useState(false);
   const [newCastName, setNewCastName] = useState("");
   const [newCastYm, setNewCastYm] = useState("");
@@ -259,7 +261,6 @@ export function AppShell({
   // 修正結果の拡大表示（候補の拡大とは別に持つ）
   const [zoomImage, setZoomImage] = useState<{ url: string; label: string } | null>(null);
   const [chatExpanded, setChatExpanded] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   /** 拡大表示しているスロット番号。null なら閉じている。 */
   const [zoomSlot, setZoomSlot] = useState<number | null>(null);
 
@@ -285,6 +286,16 @@ export function AppShell({
   useEffect(() => {
     void reloadSession();
   }, [reloadSession]);
+
+  const reloadMasters = useCallback(async () => {
+    const response = await fetch("/api/masters", { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (response.ok && data?.ok) setMasters({ stores: data.stores ?? [], casts: data.casts ?? [] });
+  }, []);
+
+  useEffect(() => {
+    void reloadMasters();
+  }, [reloadMasters]);
 
   // ── 元画像のプレビュー ──
   useEffect(() => {
@@ -875,18 +886,35 @@ export function AppShell({
     setModerationWarning(null);
   }
 
-  function registerNewCast() {
+  /** キャストの新規登録（F-14）。台帳（casts）へ入れ、そのまま選択する。 */
+  async function registerNewCast() {
     const name = newCastName.trim();
     if (!name) {
       setGateMessage("キャスト名を入力してください。");
       return;
     }
-    const label = newCastYm ? `${name}_${newCastYm.replace("-", "")}` : name;
-    setCastOptions((options) => (options.includes(label) ? options : [...options, label]));
-    setCastName(label);
+    if (!storeName.trim()) {
+      setGateMessage("先に店舗名を入力してください。キャストは店舗に紐づけて登録します。");
+      return;
+    }
+    const response = await fetch("/api/casts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ storeName: storeName.trim(), name, joinedYm: newCastYm }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { ok?: boolean; message?: string; cast?: { label: string } }
+      | null;
+    if (!response.ok || !data?.ok || !data.cast) {
+      setGateMessage(data?.message ?? "キャストを登録できませんでした。");
+      return;
+    }
+    await reloadMasters();
+    setCastName(data.cast.label);
     setNewCastName("");
     setNewCastYm("");
     setShowCastRegister(false);
+    setGateMessage(null);
   }
 
   /**
@@ -1243,19 +1271,11 @@ export function AppShell({
 
           <div className="sidebar-bottom">
             {isAdmin && (
-              <button className="nav-button" onClick={() => setSettingsOpen(true)}>
+              <button className="nav-button" onClick={() => router.push("/admin")}>
                 <i className="fa-solid fa-sliders" /> ⚙️ 管理者向けシステム設定
               </button>
             )}
-            <button
-              className="nav-button"
-              onClick={() =>
-                pushChat(
-                  "assistant",
-                  "使い方：STEP 0 で店舗・キャストを選び、STEP 1 で写真をアップロードし、STEP 2 で変えたい項目を有効にしてテンプレートを選び、STEP 3 で生成します。タトゥー除去は元画像上でブラシを塗ってください。",
-                )
-              }
-            >
+            <button className="nav-button" onClick={() => window.open("/help", "_blank", "noopener")}>
               <i className="fa-solid fa-book-open" /> ヘルプ＆ドキュメント
             </button>
 
@@ -1355,8 +1375,8 @@ export function AppShell({
                   <i className="fa-solid fa-chevron-down suggest-caret" />
                 </div>
                 <datalist id="store-options">
-                  {STORE_OPTIONS.map((option) => (
-                    <option key={option} value={option} />
+                  {masters.stores.map((store) => (
+                    <option key={store.id} value={store.name} />
                   ))}
                 </datalist>
               </div>
@@ -1378,9 +1398,15 @@ export function AppShell({
                   <i className="fa-solid fa-chevron-down suggest-caret" />
                 </div>
                 <datalist id="cast-options">
-                  {castOptions.map((option) => (
-                    <option key={option} value={option} />
-                  ))}
+                  {/* 店舗が選ばれていればその店舗のキャストだけ。未選択なら全員 */}
+                  {masters.casts
+                    .filter((cast) => {
+                      const store = masters.stores.find((s) => s.name === storeName.trim());
+                      return !store || cast.storeId === store.id;
+                    })
+                    .map((cast) => (
+                      <option key={cast.id} value={cast.label} />
+                    ))}
                 </datalist>
                 <button className="cast-register-link" onClick={() => setShowCastRegister(true)}>
                   <i className="fa-solid fa-user-plus" /> 新規キャストを登録（F-14）
@@ -1407,7 +1433,7 @@ export function AppShell({
                   />
                 </div>
                 <div className="crb-actions">
-                  <button className="crb-btn primary" onClick={registerNewCast}>
+                  <button className="crb-btn primary" onClick={() => void registerNewCast()}>
                     登録して選択
                   </button>
                   <button className="crb-btn ghost" onClick={() => setShowCastRegister(false)}>
@@ -1416,7 +1442,7 @@ export function AppShell({
                 </div>
                 <div className="crb-note">
                   <i className="fa-solid fa-database" />{" "}
-                  この体験環境ではキャストマスタへの登録は行いません。入力した名前はこのセッションの候補と、生成記録の整理用ラベルとしてのみ使われます。
+                  キャストの台帳に登録され、次回から候補に出ます。表示名は「名前_入店年月」で、Drive の保存先フォルダ名もこれになります。編集・削除は管理者向けシステム設定から行えます。
                 </div>
               </div>
 
@@ -2150,7 +2176,6 @@ export function AppShell({
         </div>
       </div>
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {/* ── 修正結果の拡大表示 ── */}
       {zoomImage && (
