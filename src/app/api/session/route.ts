@@ -79,6 +79,21 @@ export async function GET() {
     finalResolution,
   );
 
+  // 履歴の各セッションの実費（候補 ＋ 修正 ＋ 確定）。仕様書 F-07「推定コストを併せて記録する」
+  const jobIds = (jobs ?? []).map((job) => job.id);
+  const costByJob = new Map<string, number>();
+  if (jobIds.length > 0) {
+    const [{ data: drafts }, { data: editRows }, { data: finals }] = await Promise.all([
+      supabase.from("job_images").select("job_id, actual_cost_usd").in("job_id", jobIds),
+      supabase.from("edit_steps").select("job_id, actual_cost_usd").in("job_id", jobIds),
+      supabase.from("final_images").select("job_id, actual_cost_usd").in("job_id", jobIds),
+    ]);
+    for (const row of [...(drafts ?? []), ...(editRows ?? []), ...(finals ?? [])]) {
+      const jobId = row.job_id as string;
+      costByJob.set(jobId, (costByJob.get(jobId) ?? 0) + Number(row.actual_cost_usd ?? 0));
+    }
+  }
+
   const succeeded = (monthImages ?? []).filter((row) => row.status === "succeeded");
   const monthCount = succeeded.length;
   const monthCost = succeeded.reduce((sum, row) => sum + Number(row.actual_cost_usd ?? 0), 0);
@@ -114,6 +129,7 @@ export async function GET() {
       modelName: job.model_name,
       imageCount: job.image_count,
       categoryIds: job.category_ids,
+      costUsd: Number((costByJob.get(job.id) ?? 0).toFixed(4)),
     })),
   });
 }

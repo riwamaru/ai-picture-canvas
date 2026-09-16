@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: job } = await supabase
     .from("jobs")
     .select(
-      "id, status, job_mode, image_count, store_name, cast_name, session_title, category_ids, source_path, created_at, finished_at",
+      "id, status, job_mode, image_count, store_name, cast_name, session_title, category_ids, template_ids, free_texts, removal_type, source_path, mask_path, created_at, finished_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -123,6 +123,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const sourceSigned = job.source_path
     ? await admin.storage.from("sources").createSignedUrl(job.source_path, 3600)
     : { data: null };
+  const maskSigned = job.mask_path
+    ? await admin.storage.from("sources").createSignedUrl(job.mask_path, 3600)
+    : { data: null };
 
   return NextResponse.json({
     ok: true,
@@ -135,7 +138,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       castName: job.cast_name,
       sessionTitle: job.session_title,
       categoryIds: job.category_ids,
+      // 履歴から開いたときに STEP 2 の入力を戻すため（F-07）
+      templateIds: (job.template_ids ?? {}) as Record<string, string>,
+      freeTexts: (job.free_texts ?? {}) as Record<string, string>,
+      removalType: job.removal_type,
       sourceUrl: sourceSigned.data?.signedUrl ?? null,
+      maskUrl: maskSigned.data?.signedUrl ?? null,
       createdAt: job.created_at,
       finishedAt: job.finished_at,
     },
@@ -165,4 +173,44 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     done: slots.filter((s) => s.status === "succeeded" || s.status === "failed").length,
     succeeded: slots.filter((s) => s.status === "succeeded").length,
   });
+}
+
+/**
+ * セッション名の変更（仕様書 F-07 / F-09「リネーム可」）。
+ *
+ * ★ 持ち主の確認は RLS 下のクライアントで行い、更新だけ service_role で行う
+ *   （jobs には select ポリシーしか無く、authenticated からは書けない）。
+ */
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+
+  const body = (await request.json().catch(() => null)) as { sessionTitle?: unknown } | null;
+  const title = typeof body?.sessionTitle === "string" ? body.sessionTitle.trim().slice(0, 120) : null;
+  if (title === null) {
+    return NextResponse.json({ ok: false, message: "タイトルを読み取れません。" }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, message: "ログインしてください。" }, { status: 401 });
+  }
+
+  const { data: job } = await supabase.from("jobs").select("id").eq("id", id).maybeSingle();
+  if (!job) {
+    return NextResponse.json({ ok: false, message: "見つかりません。" }, { status: 404 });
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("jobs")
+    .update({ session_title: title.length > 0 ? title : null })
+    .eq("id", id);
+  if (error) {
+    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, sessionTitle: title.length > 0 ? title : null });
 }

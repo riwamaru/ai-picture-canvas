@@ -68,6 +68,18 @@ type EditStep = {
   url: string | null;
 };
 
+/** 履歴から開き直すときに使う、ジョブの入力値。 */
+type RestorableJob = {
+  jobMode: "normal" | "removal";
+  storeName: string | null;
+  castName: string | null;
+  sessionTitle: string | null;
+  categoryIds: string[];
+  templateIds: Record<string, string>;
+  freeTexts: Record<string, string>;
+  sourceUrl: string | null;
+};
+
 type ChatMessage = {
   role: "assistant" | "user" | "warn";
   text: string;
@@ -98,6 +110,7 @@ type SessionData = {
     title: string;
     modelName: string | null;
     imageCount: number;
+    costUsd: number;
   }[];
 };
 
@@ -136,6 +149,11 @@ function confirmTitle(final: FinalImage | null, slot: number, session: SessionDa
     ? `この 1 枚を ${resolution} で作り直して確定する`
     : `この 1 枚を ${resolution} で作り直して確定する（実費の見込み 約 $${price.toFixed(2)}）`;
 }
+
+const CHAT_INTRO: ChatMessage = {
+  role: "assistant",
+  text: "キャストの本人性を固定しています。6枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
+};
 
 const STRENGTH_LABEL: Record<MakeupStrength, string> = {
   weak: "弱",
@@ -196,12 +214,7 @@ export function AppShell({
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [sessionRuns, setSessionRuns] = useState(0);
-  const [chat, setChat] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      text: "キャストの本人性を固定しています。6枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
-    },
-  ]);
+  const [chat, setChat] = useState<ChatMessage[]>([CHAT_INTRO]);
   const [chatInput, setChatInput] = useState("");
   // 個別修正（F-05）。送信中は二重送信しない。
   const [edits, setEdits] = useState<EditStep[]>([]);
@@ -217,6 +230,9 @@ export function AppShell({
   const [confirming, setConfirming] = useState(false);
   const [finalImage, setFinalImage] = useState<FinalImage | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  // 履歴から開いたときだけ、次のポーリング結果で STEP 0〜2 の入力と元画像を戻す（F-07）。
+  // 生成直後のポーリングでは戻さない（入力欄はもう埋まっている）。
+  const restoreRef = useRef(false);
 
   // 除去コーナーでは常にマスクが要る。通常加工では除去カードを出さない。
   const removalOn = mode === "removal";
@@ -311,6 +327,11 @@ export function AppShell({
       setFinalImage((data.final ?? null) as FinalImage | null);
       setEdits((data.edits ?? []) as EditStep[]);
 
+      if (restoreRef.current) {
+        restoreRef.current = false;
+        await restoreInputs(data.job as RestorableJob);
+      }
+
       const pending = (data.slots as Slot[]).some(
         (s) => s.status === "queued" || s.status === "running",
       );
@@ -328,6 +349,63 @@ export function AppShell({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  /**
+   * 履歴から開いたセッションの入力を戻す（仕様書 F-07）。
+   *
+   * 結果（候補・修正・確定）はポーリングで戻るが、STEP 0〜2 の入力と元画像は
+   * jobs に記録した値から組み直す。元画像は署名付き URL から取り直して File にする
+   * （「同じ条件でもう 1 回」を押せるようにするため。プレビューだけでは生成できない）。
+   *
+   * ★ 除去のマスクは戻さない。マスクは筆で描いた画像で、描画ツールへ読み戻す口が無い。
+   *   除去のセッションを開き直して再生成するには、マスクを描き直す必要がある。
+   */
+  async function restoreInputs(job: RestorableJob) {
+    // モードは switchMode を通さない（あれは作りかけの結果を捨てる）
+    setMode(job.jobMode);
+    setStoreName(job.storeName ?? "");
+    setCastName(job.castName ?? "");
+    setManualTitle(job.sessionTitle ?? null);
+
+    const nextEnabled: Partial<Record<CategoryId, boolean>> = {};
+    for (const id of job.categoryIds) nextEnabled[id as CategoryId] = true;
+    setEnabled(nextEnabled);
+    setTemplateIds(job.templateIds as Partial<Record<CategoryId, string>>);
+    setFreeTexts(job.freeTexts as Partial<Record<CategoryId, string>>);
+
+    if (job.sourceUrl) {
+      try {
+        const blob = await fetch(job.sourceUrl).then((r) => (r.ok ? r.blob() : null));
+        if (blob) setFile(new File([blob], "source.png", { type: blob.type || "image/png" }));
+      } catch {
+        // 取れなくても結果の閲覧はできる。再生成だけができない
+      }
+    }
+  }
+
+  /** 履歴のセッションを開く。 */
+  function openHistory(id: string) {
+    if (jobRunning || id === jobId) return;
+    restoreRef.current = true;
+    setChat([CHAT_INTRO]);
+    setEdits([]);
+    setFinalImage(null);
+    setSelectedSlot(null);
+    setGateMessage(null);
+    setModerationWarning(null);
+    setJobId(id);
+  }
+
+  /** タイトルを保存する（仕様書 F-07 / F-09「リネーム可」）。作成前は生成時に送るだけ。 */
+  async function commitTitle() {
+    if (!jobId || manualTitle === null) return;
+    const response = await fetch(`/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionTitle: manualTitle }),
+    });
+    if (response.ok) void reloadSession();
+  }
 
   /** モードを切り替える。作りかけの結果を持ち越さない。 */
   function switchMode(next: "normal" | "removal") {
@@ -690,6 +768,9 @@ export function AppShell({
     if (!confirm("現在の加工設定をクリアして、新しい画像加工を開始しますか？")) return;
     setFile(null);
     setCastName("");
+    // 履歴から開いたセッションのタイトルを、新しいセッションへ持ち越さない
+    setManualTitle(null);
+    setChat([CHAT_INTRO]);
     setEnabled({});
     setTemplateIds({});
     setFreeTexts({});
@@ -1002,10 +1083,7 @@ export function AppShell({
                 <div
                   key={item.id}
                   className={`history-item${jobId === item.id ? " active" : ""}`}
-                  onClick={() => {
-                    setJobId(item.id);
-                    setSelectedSlot(null);
-                  }}
+                  onClick={() => openHistory(item.id)}
                 >
                   <div className="h-title">
                     <i className="fa-regular fa-image" />{" "}
@@ -1014,6 +1092,7 @@ export function AppShell({
                   <div className="h-meta">
                     {new Date(item.createdAt).toLocaleDateString("ja-JP")} ・{" "}
                     {item.modelName ?? "—"} ・ {item.imageCount} 枚
+                    {item.costUsd > 0 && ` ・ $${item.costUsd.toFixed(2)}`}
                   </div>
                 </div>
               ))}
@@ -1068,7 +1147,11 @@ export function AppShell({
                 className="editable-title"
                 value={sessionTitle}
                 onChange={(e) => setManualTitle(e.target.value)}
-                title="クリックしてタイトルを編集できます"
+                onBlur={() => void commitTitle()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) e.currentTarget.blur();
+                }}
+                title={jobId ? "タイトルを書き換えて Enter で保存" : "クリックしてタイトルを編集できます"}
                 placeholder="セッションタイトルを入力"
               />
             </div>
