@@ -346,6 +346,14 @@
         .final-drive-off { color: var(--text-muted); }
         /* 個別修正（F-05）：結果のサムネイルと、次の指示の適用先の案内 */
         .chat-thumb { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius-sm); margin-top: 8px; cursor: zoom-in; box-shadow: var(--shadow-sm); }
+        .chat-result { margin-top: 8px; }
+        .chat-result-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        .chat-mini-btn { font-family: inherit; font-size: 0.72rem; font-weight: 700; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-glass); background: #fff; color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+        .chat-mini-btn:hover { background: var(--bg-input); }
+        .chat-mini-btn.confirm { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .chat-mini-btn.confirm:hover { background: var(--primary-hover); }
+        .chat-mini-btn.confirm.done { background: #16a34a; border-color: #16a34a; }
+        .chat-mini-btn:disabled { opacity: 0.6; cursor: default; }
         .chat-base-hint { font-size: 0.72rem; color: var(--text-muted); padding: 6px 12px 0; }
         .chat-input-area input:disabled, .chat-input-area button:disabled { opacity: 0.6; cursor: default; }
         .action-icon-btn:disabled { opacity: 0.5; cursor: default; transform: none; }

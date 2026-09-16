@@ -11,6 +11,7 @@ import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
 import type { Resolution } from "./vendor/providers/types";
 import { syncFinalToDrive, type SyncOutcome } from "./driveSync";
 import { buildEditPrompt } from "./edit";
+import { trashFile } from "./drive";
 import { notifyDriveIncident } from "./slack";
 
 /**
@@ -95,8 +96,14 @@ export async function finalizeJob(
     jobId: string;
     /** 系統の元になったドラフト。修正を経た場合も「どの候補から始めたか」として残す。 */
     slot: number;
-    /** 個別修正を経てから確定する場合、その最後の修正（仕様書 STEP 4 → STEP 5）。 */
+    /** 個別修正を経てから確定する場合、その修正（仕様書 STEP 4 → STEP 5）。 */
     stepId: string | null;
+    /**
+     * 既に確定済みのとき、置き換えるか。
+     * 1 セッションにつき確定画像は 1 枚（仕様書 STEP 5）なので、新しく作るなら古いほうを退ける。
+     * 実費がもう 1 回かかるので、画面で確認を取ってから true にする。
+     */
+    replace: boolean;
     userId: string;
     email: string;
   },
@@ -176,11 +183,51 @@ export async function finalizeJob(
   // final_images.job_id は unique（1 セッションにつき確定画像は 1 枚）。
   const { data: existing } = await admin
     .from("final_images")
-    .select("id, status, source_slot, provider, resolution, actual_cost_usd, latency_ms, drive_status")
+    .select(
+      "id, status, source_slot, source_step_id, provider, resolution, actual_cost_usd, latency_ms, drive_status, drive_file_id",
+    )
     .eq("job_id", input.jobId)
     .maybeSingle();
 
-  if (existing?.status === "succeeded") {
+  const sameSource =
+    existing?.status === "succeeded" &&
+    (existing.source_step_id ?? null) === (input.stepId ?? null) &&
+    (input.stepId !== null || existing.source_slot === input.slot);
+
+  if (existing?.status === "succeeded" && !sameSource && !input.replace) {
+    return {
+      ok: false,
+      reason: "invalid",
+      message: "この回は別の画像で確定済みです。置き換える場合は確認のうえもう一度お試しください。",
+    };
+  }
+
+  if (existing?.status === "succeeded" && !sameSource && input.replace) {
+    // 置き換え：Drive の古い確定画像をゴミ箱へ（失敗しても続行。Drive 側に 2 枚残るだけ）
+    if (existing.drive_file_id) {
+      await trashFile(existing.drive_file_id as string).catch((error) => {
+        console.error("[finalize] 古い確定画像をゴミ箱へ入れられませんでした:", error);
+      });
+    }
+    // 行は upsert で上書きされる。Drive の状態もここで一度リセットしておく
+    await admin
+      .from("final_images")
+      .update({
+        drive_status: "none",
+        drive_file_id: null,
+        drive_view_url: null,
+        drive_folder_id: null,
+        drive_synced_at: null,
+        drive_attempts: 0,
+        drive_error: null,
+        result_path: null,
+        actual_cost_usd: null,
+        latency_ms: null,
+      })
+      .eq("id", existing.id);
+  }
+
+  if (existing?.status === "succeeded" && sameSource) {
     // 同じ候補なら Drive への保存だけやり直せるようにする（未同期の再送）。
     const drive = await syncFinalToDrive(admin, { jobId: input.jobId });
     return {

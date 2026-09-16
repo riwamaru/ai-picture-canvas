@@ -582,6 +582,11 @@ async function createFolder(
   return id;
 }
 
+/** ファイルをゴミ箱へ入れる（確定画像を置き換えたときの古いほう）。中身はフォルダと同じ PATCH。 */
+export async function trashFile(fileId: string): Promise<void> {
+  await trashFolder(requireCredentials(), fileId);
+}
+
 /** 重複して作られたフォルダをゴミ箱へ入れる（先勝ち・後発を削除／仕様書 4.7.2）。 */
 export async function trashFolder(credentials: Credentials, folderId: string): Promise<void> {
   const url = `https://www.googleapis.com/drive/v3/files/${folderId}?${SHARED_DRIVE_PARAMS}`;

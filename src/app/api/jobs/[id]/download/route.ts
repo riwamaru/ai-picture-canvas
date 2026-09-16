@@ -32,12 +32,28 @@ function contentDisposition(filename: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+/**
+ * 何をダウンロードするか。
+ *   ?slot=N     … ドラフト候補 N
+ *   ?step=<id>  … 個別修正の結果（F-05）
+ *   ?final=1    … 確定画像（2K）
+ */
+type Target = { kind: "slot"; slot: number } | { kind: "step"; stepId: string } | { kind: "final" };
+
+function parseTarget(url: string): Target | null {
+  const params = new URL(url).searchParams;
+  if (params.get("final") === "1") return { kind: "final" };
+  const step = params.get("step");
+  if (step) return /^[0-9a-f-]{36}$/i.test(step) ? { kind: "step", stepId: step } : null;
+  const slot = Number(params.get("slot"));
+  return Number.isInteger(slot) && slot >= 0 ? { kind: "slot", slot } : null;
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const slot = Number(new URL(request.url).searchParams.get("slot"));
-
-  if (!Number.isInteger(slot) || slot < 0) {
-    return NextResponse.json({ ok: false, message: "スロットの指定が不正です。" }, { status: 400 });
+  const target = parseTarget(request.url);
+  if (!target) {
+    return NextResponse.json({ ok: false, message: "対象の指定が不正です。" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -58,22 +74,47 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ ok: false, message: "見つかりません。" }, { status: 404 });
   }
 
-  const { data: image } = await supabase
-    .from("job_images")
-    .select("result_path, makeup_strength, variant, status")
-    .eq("job_id", id)
-    .eq("slot", slot)
-    .maybeSingle();
+  // ── 対象の行を RLS 下で読む（他人のものなら返らない） ──
+  let resultPath: string | null = null;
+  let suffix = "";
 
-  if (!image?.result_path || image.status !== "succeeded") {
+  if (target.kind === "slot") {
+    const { data: image } = await supabase
+      .from("job_images")
+      .select("result_path, status")
+      .eq("job_id", id)
+      .eq("slot", target.slot)
+      .maybeSingle();
+    if (image?.status === "succeeded") resultPath = image.result_path;
+    suffix = `候補${target.slot + 1}`;
+  } else if (target.kind === "step") {
+    const { data: step } = await supabase
+      .from("edit_steps")
+      .select("result_path, status, step_no")
+      .eq("job_id", id)
+      .eq("id", target.stepId)
+      .maybeSingle();
+    if (step?.status === "succeeded") resultPath = step.result_path;
+    suffix = `修正${step?.step_no ?? ""}`;
+  } else {
+    const { data: final } = await supabase
+      .from("final_images")
+      .select("result_path, status, resolution")
+      .eq("job_id", id)
+      .maybeSingle();
+    if (final?.status === "succeeded") resultPath = final.result_path;
+    suffix = `確定${String(final?.resolution ?? "").toUpperCase()}`;
+  }
+
+  if (!resultPath) {
     return NextResponse.json(
-      { ok: false, message: "この候補にはダウンロードできる画像がありません。" },
+      { ok: false, message: "ダウンロードできる画像がありません。" },
       { status: 404 },
     );
   }
 
   const admin = createAdminClient();
-  const { data: file, error } = await admin.storage.from("results").download(image.result_path);
+  const { data: file, error } = await admin.storage.from("results").download(resultPath);
   if (error || !file) {
     return NextResponse.json(
       { ok: false, message: `画像を取得できませんでした: ${error?.message ?? "不明"}` },
@@ -85,7 +126,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     job.session_title?.trim() ||
     [job.store_name, job.cast_name].filter(Boolean).join("_") ||
     "ai-canvas";
-  const filename = `${base}_候補${slot + 1}.png`.replace(/[\/\\:*?"<>|]/g, "_");
+  const filename = `${base}_${suffix}.png`.replace(/[\/\\:*?"<>|]/g, "_");
 
   return new NextResponse(await file.arrayBuffer(), {
     headers: {

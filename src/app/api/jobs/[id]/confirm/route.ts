@@ -27,7 +27,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
 
   const body = (await request.json().catch(() => null)) as
-    | { slot?: unknown; stepId?: unknown }
+    | { slot?: unknown; stepId?: unknown; replace?: unknown }
     | null;
   const slot = Number(body?.slot);
   if (!Number.isInteger(slot) || slot < 0) {
@@ -35,6 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
   // 個別修正を経てから確定する場合、最後の修正の ID（仕様書 STEP 4 → STEP 5）
   const stepId = typeof body?.stepId === "string" && body.stepId.length > 0 ? body.stepId : null;
+  const replace = body?.replace === true;
 
   const supabase = await createClient();
   const {
@@ -57,6 +58,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     jobId: id,
     slot,
     stepId,
+    replace,
     userId: user.id,
     email: user.email ?? user.id,
   });

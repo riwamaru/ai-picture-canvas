@@ -35,6 +35,7 @@ type Slot = {
  */
 type FinalImage = {
   sourceSlot: number;
+  sourceStepId: string | null;
   status: "queued" | "running" | "succeeded" | "failed";
   resolution: "1k" | "2k";
   provider: "openai" | "google" | null;
@@ -960,42 +961,87 @@ export function AppShell({
    *   画像は Supabase 側に残っており、未同期として後から再送される（仕様書 4.7.2）。
    */
   async function confirmSelection(slot: Slot) {
-    if (!jobId || confirming) return;
-
-    // 保存済みなら、もう一度作らずに Drive を開く（二重課金と重複ファイルを避ける）
-    if (finalImage?.status === "succeeded" && finalImage.driveViewUrl) {
-      window.open(finalImage.driveViewUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
     // 修正を経た系統の候補を確定するなら、最後の修正結果が「選んだ 1 枚」（仕様書 STEP 4 → STEP 5）
     const base =
       slot.slot === chainRootSlot()
         ? [...edits].reverse().find((step) => step.status === "succeeded") ?? null
         : null;
+    await runConfirm({
+      slot: slot.slot,
+      stepId: base?.id ?? null,
+      label: base
+        ? `候補${slot.slot + 1}の修正 ${base.stepNo} 回目の結果`
+        : `候補${slot.slot + 1}`,
+    });
+  }
 
-    if (finalImage?.status !== "succeeded") {
-      const price = session?.finalUnitUsd ?? null;
-      const yen = price === null ? null : Math.round(price * 150).toLocaleString("ja-JP");
-      const ok = window.confirm(
-        (base
-          ? `候補${slot.slot + 1}の修正 ${base.stepNo} 回目の結果を確定します。\n\n`
-          : `候補${slot.slot + 1}を確定します。\n\n`) +
-          `${session?.finalResolution?.toUpperCase() ?? "2K"} で作り直してから Drive へ保存します。` +
-          (price === null ? "" : `\n実費の見込み：約 $${price.toFixed(2)}（約${yen}円）`) +
-          "\n\n★ 引き伸ばしではなく作り直しのため、候補と完全に同じ絵にはなりません。",
-      );
-      if (!ok) return;
+  /** 修正結果そのものを確定する（チャットのボタンから）。 */
+  async function confirmEdit(step: EditStep) {
+    await runConfirm({
+      slot: rootSlotOf(step),
+      stepId: step.id,
+      label: `修正 ${step.stepNo} 回目の結果`,
+    });
+  }
+
+  /** その修正が、どの候補から始まった系統か。 */
+  function rootSlotOf(step: EditStep): number {
+    const index = edits.findIndex((s) => s.id === step.id);
+    for (let i = index; i >= 0; i -= 1) {
+      const s = edits[i]!;
+      if (s.sourceKind === "draft" && s.sourceSlot !== null) return s.sourceSlot;
+    }
+    return selectedSlot ?? 0;
+  }
+
+  /** この対象が、いま確定されているものと同じか。 */
+  function isCurrentFinal(target: { slot: number; stepId: string | null }): boolean {
+    if (finalImage?.status !== "succeeded") return false;
+    if (target.stepId) return finalImage.sourceStepId === target.stepId;
+    return finalImage.sourceStepId === null && finalImage.sourceSlot === target.slot;
+  }
+
+  /**
+   * 確定処理（仕様書 STEP 5）。
+   *   ① 対象を高解像度で作り直す ② 共有ドライブへ保存 ③ 記録
+   *
+   * ★ 実費が発生する操作なので、押す前に金額を見せて確認を取る。
+   * ★ 既に別の画像で確定済みなら「置き換え」になる。1 セッションにつき確定は 1 枚。
+   *   古い確定画像は Drive ではゴミ箱へ入り、実費はもう 1 回かかる。これも確認を取る。
+   * ★ Drive への保存だけが失敗しても、確定そのものは成功として扱う（仕様書 4.7.2）。
+   */
+  async function runConfirm(target: { slot: number; stepId: string | null; label: string }) {
+    if (!jobId || confirming) return;
+
+    // 同じものが確定済みなら、もう一度作らずに Drive を開く（二重課金と重複ファイルを避ける）
+    if (isCurrentFinal(target)) {
+      if (finalImage?.driveViewUrl) window.open(finalImage.driveViewUrl, "_blank", "noopener,noreferrer");
+      else pushChat("assistant", "この画像は確定済みです。");
+      return;
     }
 
+    const replacing = finalImage?.status === "succeeded";
+    const price = session?.finalUnitUsd ?? null;
+    const yen = price === null ? null : Math.round(price * 150).toLocaleString("ja-JP");
+    const ok = window.confirm(
+      `${target.label}を確定します。\n\n` +
+        (replacing
+          ? "★ この回は既に確定済みです。今の確定画像を置き換えます（Drive の古いほうはゴミ箱へ入ります）。\n\n"
+          : "") +
+        `${session?.finalResolution?.toUpperCase() ?? "2K"} で作り直してから Drive へ保存します。` +
+        (price === null ? "" : `\n実費の見込み：約 $${price.toFixed(2)}（約${yen}円）`) +
+        "\n\n★ 引き伸ばしではなく作り直しのため、元の絵と完全に同じにはなりません。",
+    );
+    if (!ok) return;
+
     setConfirming(true);
-    pushChat("assistant", `候補${slot.slot + 1}の確定処理を始めました。高解像度で作り直しています…`);
+    pushChat("assistant", `${target.label}の確定処理を始めました。高解像度で作り直しています…`);
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slot: slot.slot, stepId: base?.id ?? null }),
+        body: JSON.stringify({ slot: target.slot, stepId: target.stepId, replace: replacing }),
       });
       const data = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -1008,7 +1054,6 @@ export function AppShell({
         pushChat("warn", "確定処理の結果を読み取れませんでした。");
         return;
       }
-
       if (!data.ok) {
         pushChat("warn", data.message ?? "確定できませんでした。");
         return;
@@ -1026,6 +1071,16 @@ export function AppShell({
     } finally {
       setConfirming(false);
     }
+  }
+
+  /** 修正結果・確定画像のダウンロード（候補と同じく、同一オリジンの API を経由する）。 */
+  function downloadEdit(step: EditStep) {
+    if (!jobId) return;
+    window.location.href = `/api/jobs/${jobId}/download?step=${step.id}`;
+  }
+  function downloadFinal() {
+    if (!jobId) return;
+    window.location.href = `/api/jobs/${jobId}/download?final=1`;
   }
 
   /** ジョブの状態を 1 回だけ取り直す（確定処理の後に使う）。 */
@@ -1855,6 +1910,11 @@ export function AppShell({
                       {/* ★ Drive 未同期を「失敗」と読ませない。
                           画像は Supabase 側に残っており、あとから自動で再送される（仕様書 4.7.2）。 */}
                       <div className="final-drive">
+                        <button type="button" className="chat-mini-btn" onClick={downloadFinal}>
+                          <i className="fa-solid fa-floppy-disk" /> {finalImage.resolution.toUpperCase()} をダウンロード
+                        </button>
+                      </div>
+                      <div className="final-drive">
                         {!session?.driveEnabled ? (
                           <span className="final-drive-off">
                             Drive 保存は管理者設定でオフです
@@ -1904,13 +1964,36 @@ export function AppShell({
                     {message.role === "warn" && <i className="fa-solid fa-triangle-exclamation" />}{" "}
                     {message.text}
                     {message.image && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={message.image}
-                        alt="修正結果"
-                        className="chat-thumb"
-                        onClick={() => openZoomImage(message.image!, "修正結果")}
-                      />
+                      <div className="chat-result">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={message.image}
+                          alt="修正結果"
+                          className="chat-thumb"
+                          onClick={() => openZoomImage(message.image!, "修正結果")}
+                        />
+                        {(() => {
+                          const step = edits.find((s) => s.id === message.stepId);
+                          if (!step || step.status !== "succeeded") return null;
+                          const confirmed = isCurrentFinal({ slot: rootSlotOf(step), stepId: step.id });
+                          return (
+                            <div className="chat-result-actions">
+                              <button type="button" className="chat-mini-btn" onClick={() => downloadEdit(step)}>
+                                <i className="fa-solid fa-floppy-disk" /> ダウンロード
+                              </button>
+                              <button
+                                type="button"
+                                className={`chat-mini-btn confirm${confirmed ? " done" : ""}`}
+                                disabled={confirming}
+                                onClick={() => void confirmEdit(step)}
+                              >
+                                <i className={confirmed ? "fa-solid fa-circle-check" : "fa-solid fa-star"} />{" "}
+                                {confirmed ? "確定済み" : "この結果で確定"}
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )}
                   </div>
                 ))}
