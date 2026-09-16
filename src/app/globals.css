@@ -656,8 +656,8 @@
    モーダルだった設定を、節が増えたので左メニューつきのページへ。
    各節の中身のクラス（settings-section-title 等）はモーダル時代のまま使う。
    ============================================================ */
-.admin-page { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: var(--bg-main); }
-.admin-nav { background: #fff; border-right: 1px solid var(--border-glass); padding: 20px 14px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.admin-page { display: grid; grid-template-columns: 260px 1fr; height: 100vh; width: 100vw; overflow: hidden; background: var(--bg-main); }
+.admin-nav { background: #fff; border-right: 1px solid var(--border-glass); padding: 20px 14px; display: flex; flex-direction: column; gap: 14px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
 .admin-nav-head { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; border-bottom: 1px solid var(--border-glass); font-size: 1.1rem; }
 .admin-nav-title { font-weight: 700; font-size: 0.95rem; color: var(--text-main); }
 .admin-nav-sub { font-size: 0.72rem; color: var(--text-muted); }
@@ -671,7 +671,8 @@
 .admin-nav-hint { display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 400; margin-top: 1px; }
 .admin-back { margin-top: auto; font-size: 0.82rem; color: var(--text-muted); text-decoration: none; padding: 8px 10px; }
 .admin-back:hover { color: var(--text-link); }
-.admin-main { padding: 24px 32px 60px; max-width: 980px; }
+.admin-main { padding: 24px 32px 60px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
+.admin-main > * { max-width: 980px; }
 .admin-main-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 .admin-main-head h2 { margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; }
 .admin-main-head h2 i { color: var(--primary); }
@@ -696,8 +697,9 @@
 .crb-btn:disabled { opacity: 0.5; cursor: default; }
 
 @media (max-width: 900px) {
-  .admin-page { grid-template-columns: 1fr; }
-  .admin-nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border-glass); }
+  .admin-page { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  .admin-main { height: auto; overflow: visible; }
+  .admin-nav { height: auto; border-right: none; border-bottom: 1px solid var(--border-glass); }
   .admin-nav nav { flex-direction: row; flex-wrap: wrap; }
   .admin-nav-item { padding: 8px 10px; }
   .admin-nav-hint { display: none; }
@@ -707,15 +709,19 @@
 /* ============================================================
    ヘルプ＆ドキュメント（/help）
    ============================================================ */
-.help-page { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; background: var(--bg-main); }
-.help-nav { background: #fff; border-right: 1px solid var(--border-glass); padding: 20px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+/* ★ body は確定 UI の都合で height:100vh・overflow:hidden（3 カラム固定）。
+   そのままだとこのページはスクロールできず、目次のアンカーも効かない。
+   ページ自体を 100vh に固定し、本文側を独立してスクロールさせる。 */
+.help-page { display: grid; grid-template-columns: 240px 1fr; height: 100vh; width: 100vw; overflow: hidden; background: var(--bg-main); }
+.help-nav { background: #fff; border-right: 1px solid var(--border-glass); padding: 20px 14px; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
 .help-nav-head { font-weight: 700; font-size: 0.9rem; padding: 4px 8px 12px; border-bottom: 1px solid var(--border-glass); display: flex; align-items: center; gap: 8px; }
 .help-nav-head i { color: var(--primary); }
 .help-nav nav { display: flex; flex-direction: column; gap: 2px; }
 .help-nav nav a { padding: 7px 10px; border-radius: var(--radius-sm); font-size: 0.83rem; color: var(--text-main); text-decoration: none; }
 .help-nav nav a:hover { background: var(--bg-input); color: var(--text-link); }
 .help-back { margin-top: auto; font-size: 0.82rem; color: var(--text-muted); text-decoration: none; padding: 8px 10px; }
-.help-main { padding: 28px 40px 80px; max-width: 820px; line-height: 1.85; font-size: 0.92rem; }
+.help-main { padding: 28px 40px 80px; line-height: 1.85; font-size: 0.92rem; height: 100vh; overflow-y: auto; box-sizing: border-box; }
+.help-main > * { max-width: 820px; }
 .help-main h1 { font-size: 1.5rem; margin: 0 0 6px; }
 .help-lede { color: var(--text-muted); margin: 0 0 24px; }
 .help-main section { margin: 34px 0; scroll-margin-top: 16px; }
@@ -731,8 +737,9 @@
 .help-foot { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--border-glass); font-size: 0.78rem; color: var(--text-muted); }
 
 @media (max-width: 900px) {
-  .help-page { grid-template-columns: 1fr; }
-  .help-nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border-glass); }
+  /* モバイルでは body がスクロールする（600 行目付近の上書き）ので、通常の流れに戻す */
+  .help-page { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  .help-nav { height: auto; border-right: none; border-bottom: 1px solid var(--border-glass); }
   .help-nav nav { flex-direction: row; flex-wrap: wrap; }
-  .help-main { padding: 16px; }
+  .help-main { padding: 16px; height: auto; overflow: visible; }
 }

@@ -1823,7 +1823,8 @@ export function AppShell({
                   {(slots.length > 0
                     ? slots
                     : Array.from(
-                        { length: mode === "removal" ? 1 : 6 },
+                        // 生成前の空枠。弱・強 × 各 2 枚 ＝ 4（除去は 1）
+                        { length: mode === "removal" ? 1 : 4 },
                         () => null as Slot | null,
                       )
                   ).map((slot, index) => {
@@ -1836,7 +1837,7 @@ export function AppShell({
                             <span className="slot-strength">
                               {mode === "removal"
                                 ? "マスク領域の修復"
-                                : `メイク ${["弱", "弱", "中", "中", "強", "強"][index]}`}
+                                : `メイク ${["弱", "弱", "強", "強"][index]}`}
                             </span>
                           </div>
                         </div>
