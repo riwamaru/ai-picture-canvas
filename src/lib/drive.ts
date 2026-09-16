@@ -583,7 +583,7 @@ async function createFolder(
 }
 
 /** 重複して作られたフォルダをゴミ箱へ入れる（先勝ち・後発を削除／仕様書 4.7.2）。 */
-async function trashFolder(credentials: Credentials, folderId: string): Promise<void> {
+export async function trashFolder(credentials: Credentials, folderId: string): Promise<void> {
   const url = `https://www.googleapis.com/drive/v3/files/${folderId}?${SHARED_DRIVE_PARAMS}`;
   await driveFetch(credentials, url, {
     method: "PATCH",

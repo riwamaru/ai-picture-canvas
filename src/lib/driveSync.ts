@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DriveError,
   findOrCreateFolder,
+  folderExists,
   requireCredentials,
   resolveFolderTarget,
   uploadImage,
@@ -84,13 +85,20 @@ export async function ensureCastFolder(
 ): Promise<{ folderId: string; ledgerId: string }> {
   const credentials = requireCredentials();
 
-  // ── 1. 台帳にあればロックを取らずに済ませる ──
+  // ── 1. 台帳にあり、Drive 上でも生きていれば、ロックを取らずに済ませる ──
   //
-  // Drive 側の存在確認はここではしない。仕様書 4.7.2 は
-  // 「保存時に 404 を検知したら作り直す」としており、毎回問い合わせても
-  // 保存 1 回あたりの呼び出しが増えるだけで得るものがない。
+  // ★ 「生きているか」を必ず問い合わせる。
+  //   仕様書 4.7.2 は「保存時に 404 を検知したら作り直す」としているが、実測では
+  //   **ゴミ箱に入ったフォルダへのアップロードは 404 にならず成功してしまう**
+  //   （ファイルは黙ってゴミ箱の中に置かれ、30 日後に消える）。
+  //   404 だけを待っていると、人がフォルダをゴミ箱に入れた瞬間から
+  //   確定画像が全部ゴミ箱へ入り続け、誰も気づかない。
+  //   店舗フォルダとキャストフォルダの両方を見る。親だけがゴミ箱に入った場合、
+  //   子の trashed は即座には true にならなかった（これも実測）。
   const found = await selectLedger(admin, target.folderKey);
-  if (found?.folder_id) return { folderId: found.folder_id, ledgerId: found.id };
+  if (found?.folder_id && (await ledgerAlive(found))) {
+    return { folderId: found.folder_id, ledgerId: found.id };
+  }
 
   // ── 2. ロックを取る ──
   const owner = randomUUID();
@@ -112,7 +120,9 @@ export async function ensureCastFolder(
 
     // 待っている間に、ロックを持っている側が作り終えたかもしれない
     const meanwhile = await selectLedger(admin, target.folderKey);
-    if (meanwhile?.folder_id) return { folderId: meanwhile.folder_id, ledgerId: meanwhile.id };
+    if (meanwhile?.folder_id && (await ledgerAlive(meanwhile))) {
+      return { folderId: meanwhile.folder_id, ledgerId: meanwhile.id };
+    }
 
     await sleep(LOCK_WAIT_MS);
   }
@@ -127,7 +137,12 @@ export async function ensureCastFolder(
   try {
     // ── 3. ★ ロック取得後に再度 DB を確認する（仕様書 4.7.2） ──
     const again = await selectLedger(admin, target.folderKey);
-    if (again?.folder_id) return { folderId: again.folder_id, ledgerId: again.id };
+    if (again?.folder_id) {
+      if (await ledgerAlive(again)) return { folderId: again.folder_id, ledgerId: again.id };
+      // 台帳には ID があるが Drive 上で消えている／ゴミ箱に入っている → 作り直し（仕様書 4.7.2 ③）
+      const recreated = await recreateFolder(admin, target);
+      return { folderId: recreated, ledgerId: again.id };
+    }
 
     // ── 4. 店舗フォルダ → キャストフォルダの順に用意する ──
     const storeFolderId = await ensureChildFolder(admin, credentials, {
@@ -181,6 +196,17 @@ export async function ensureCastFolder(
         if (error) console.error("[drive] ロックを解放できませんでした:", error.message);
       });
   }
+}
+
+/**
+ * 台帳のフォルダが Drive 上で今も生きているか（削除もゴミ箱入りもしていないか）。
+ * 店舗・キャストの 2 階層とも見る。
+ */
+async function ledgerAlive(row: LedgerRow): Promise<boolean> {
+  if (!row.folder_id) return false;
+  if (!(await folderExists(row.folder_id))) return false;
+  if (row.store_folder_id && !(await folderExists(row.store_folder_id))) return false;
+  return true;
 }
 
 function storeKeyOf(target: FolderTarget): string {
@@ -290,7 +316,7 @@ async function recreateFolder(admin: SupabaseClient, target: FolderTarget): Prom
     title: "保存先フォルダを作り直しました",
     detail:
       `${target.storeName} / ${target.folderName}\n` +
-      "Drive 上でフォルダが削除されていたため、同じ名前で作り直しました。" +
+      "Drive 上でフォルダが削除（またはゴミ箱に移動）されていたため、同じ名前で作り直しました。" +
       "*以前このフォルダに入っていた画像は復旧できません。* 削除の経緯をご確認ください。",
   });
 
