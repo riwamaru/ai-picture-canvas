@@ -10,6 +10,7 @@ import { PROCESS_KIND } from "./vendor/prompts/categories";
 import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
 import type { Resolution } from "./vendor/providers/types";
 import { syncFinalToDrive, type SyncOutcome } from "./driveSync";
+import { buildEditPrompt } from "./edit";
 import { notifyDriveIncident } from "./slack";
 
 /**
@@ -90,7 +91,15 @@ type Attempt = { provider: ProviderName; method: "inpaint" | "semantic_mask" | "
  */
 export async function finalizeJob(
   admin: SupabaseClient,
-  input: { jobId: string; slot: number; userId: string; email: string },
+  input: {
+    jobId: string;
+    /** 系統の元になったドラフト。修正を経た場合も「どの候補から始めたか」として残す。 */
+    slot: number;
+    /** 個別修正を経てから確定する場合、その最後の修正（仕様書 STEP 4 → STEP 5）。 */
+    stepId: string | null;
+    userId: string;
+    email: string;
+  },
 ): Promise<FinalizeOutcome> {
   const { data: job } = await admin
     .from("jobs")
@@ -112,6 +121,54 @@ export async function finalizeJob(
   }
   if (draft.status !== "succeeded") {
     return { ok: false, reason: "invalid", message: "この候補は生成に失敗しています。" };
+  }
+
+  // ── 個別修正を経ているなら、その最後の修正を「選んだ 1 枚」とみなす ──
+  //
+  // 2K での作り直しは「その修正の指示を、その修正の入力画像に対して 2K で適用し直す」。
+  // 修正結果（1K）を引き伸ばすのではなく、同じ変換を高解像度でやり直す。
+  type EditStep = {
+    id: string;
+    status: string;
+    instruction: string;
+    provider: ProviderName | null;
+    source_kind: "draft" | "step";
+    source_slot: number | null;
+    source_step_id: string | null;
+  };
+  let editStep: EditStep | null = null;
+  let editSourcePath: string | null = null;
+  if (input.stepId) {
+    const { data: step } = await admin
+      .from("edit_steps")
+      .select("id, status, instruction, provider, source_kind, source_slot, source_step_id")
+      .eq("id", input.stepId)
+      .eq("job_id", input.jobId)
+      .maybeSingle<EditStep>();
+    if (!step || step.status !== "succeeded") {
+      return { ok: false, reason: "invalid", message: "その修正結果は確定できません。" };
+    }
+    editStep = step;
+
+    if (step.source_kind === "draft") {
+      const { data: src } = await admin
+        .from("job_images")
+        .select("result_path")
+        .eq("job_id", input.jobId)
+        .eq("slot", step.source_slot!)
+        .maybeSingle();
+      editSourcePath = (src?.result_path as string | null) ?? null;
+    } else {
+      const { data: src } = await admin
+        .from("edit_steps")
+        .select("result_path")
+        .eq("id", step.source_step_id!)
+        .maybeSingle();
+      editSourcePath = (src?.result_path as string | null) ?? null;
+    }
+    if (!editSourcePath) {
+      return { ok: false, reason: "invalid", message: "修正の入力画像が見つかりません。" };
+    }
   }
 
   // ── 既に確定済みか ──
@@ -169,9 +226,9 @@ export async function finalizeJob(
     variant: draft.variant as VariantIndex,
   };
 
-  let built;
+  let built: { text: string; hash: string; variantSeedHint?: string };
   try {
-    built = buildSlotPrompt(selection, spec);
+    built = editStep ? buildEditPrompt(editStep.instruction) : buildSlotPrompt(selection, spec);
   } catch (error) {
     return {
       ok: false,
@@ -186,9 +243,9 @@ export async function finalizeJob(
   //   確定画像はそのドラフトを選んだ結果なので、別のモデルで作ると
   //   「選んだものと違う絵」が確定画像になってしまう。
   const chain = buildChain({
-    mode: job.job_mode,
-    draftProvider: draft.provider,
-    draftMethod: draft.edit_method,
+    mode: editStep ? "normal" : job.job_mode,
+    draftProvider: editStep ? editStep.provider : draft.provider,
+    draftMethod: editStep ? "instruct" : draft.edit_method,
     fallbackEnabled,
     primary: (limits?.primary_provider ?? "openai") as ProviderName,
     removalFallback: limits?.removal_fallback_enabled ?? true,
@@ -247,6 +304,7 @@ export async function finalizeJob(
       {
         job_id: input.jobId,
         source_slot: input.slot,
+        source_step_id: editStep?.id ?? null,
         status: "running",
         resolution,
         prompt_hash: built.hash,
@@ -271,7 +329,9 @@ export async function finalizeJob(
   const finalId = row.id as string;
 
   // ── 素材を読む ──
-  const source = await downloadFromStorage(admin, "sources", job.source_path);
+  const source = editStep
+    ? await downloadFromStorage(admin, "results", editSourcePath!)
+    : await downloadFromStorage(admin, "sources", job.source_path);
   if (!source) {
     await failFinal(admin, finalId, "infra", "元画像を取得できませんでした。");
     await settle(admin, input.userId, usageDay, perImageUsd, 0, 1);
@@ -279,10 +339,10 @@ export async function finalizeJob(
   }
 
   let maskPng: Buffer | null = null;
-  if (job.mask_path) {
+  if (job.mask_path && !editStep) {
     maskPng = await downloadFromStorage(admin, "sources", job.mask_path);
   }
-  if (selection.requiresMask && !maskPng) {
+  if (selection.requiresMask && !editStep && !maskPng) {
     await failFinal(admin, finalId, "input", "マスク画像を取得できませんでした。");
     await settle(admin, input.userId, usageDay, perImageUsd, 0, 1);
     return { ok: false, reason: "failed", message: "マスク画像を取得できませんでした。", errorKind: "input" };

@@ -78,7 +78,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: finalRow } = await supabase
     .from("final_images")
     .select(
-      "source_slot, status, resolution, provider, edit_method, actual_cost_usd, latency_ms, error_kind, error_message, result_path, drive_status, drive_view_url, drive_synced_at",
+      "source_slot, source_step_id, status, resolution, provider, edit_method, actual_cost_usd, latency_ms, error_kind, error_message, result_path, drive_status, drive_view_url, drive_synced_at",
     )
     .eq("job_id", id)
     .maybeSingle();
@@ -86,6 +86,39 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const finalSigned = finalRow?.result_path
     ? await admin.storage.from("results").createSignedUrl(finalRow.result_path, 3600)
     : { data: null };
+
+  // ── 個別修正の履歴（仕様書 F-05）。画面のチャットに並べる ──
+  const { data: stepRows } = await supabase
+    .from("edit_steps")
+    .select(
+      "id, step_no, source_kind, source_slot, instruction, status, provider, attempted_provider, actual_cost_usd, latency_ms, error_kind, error_message, result_path, created_at",
+    )
+    .eq("job_id", id)
+    .order("step_no", { ascending: true });
+
+  const edits = await Promise.all(
+    (stepRows ?? []).map(async (step) => {
+      const signed = step.result_path
+        ? await admin.storage.from("results").createSignedUrl(step.result_path, 3600)
+        : { data: null };
+      return {
+        id: step.id,
+        stepNo: step.step_no,
+        sourceKind: step.source_kind as "draft" | "step",
+        sourceSlot: step.source_slot,
+        instruction: step.instruction,
+        status: step.status as "queued" | "running" | "succeeded" | "failed",
+        provider: step.provider,
+        attemptedProvider: step.attempted_provider,
+        costUsd: step.actual_cost_usd === null ? null : Number(step.actual_cost_usd),
+        latencyMs: step.latency_ms,
+        errorKind: step.error_kind,
+        errorMessage: step.error_message,
+        createdAt: step.created_at,
+        url: signed.data?.signedUrl ?? null,
+      };
+    }),
+  );
 
   const sourceSigned = job.source_path
     ? await admin.storage.from("sources").createSignedUrl(job.source_path, 3600)
@@ -107,9 +140,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       finishedAt: job.finished_at,
     },
     slots,
+    edits,
     final: finalRow
       ? {
           sourceSlot: finalRow.source_slot,
+          sourceStepId: finalRow.source_step_id,
           status: finalRow.status as "queued" | "running" | "succeeded" | "failed",
           resolution: finalRow.resolution as "1k" | "2k",
           provider: finalRow.provider,

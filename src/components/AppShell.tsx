@@ -50,6 +50,33 @@ type FinalImage = {
   url: string | null;
 };
 
+/** 個別修正（F-05 逐次編集）の 1 回分。 */
+type EditStep = {
+  id: string;
+  stepNo: number;
+  sourceKind: "draft" | "step";
+  sourceSlot: number | null;
+  instruction: string;
+  status: "queued" | "running" | "succeeded" | "failed";
+  provider: "openai" | "google" | null;
+  attemptedProvider: "openai" | "google" | null;
+  costUsd: number | null;
+  latencyMs: number | null;
+  errorKind: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  url: string | null;
+};
+
+type ChatMessage = {
+  role: "assistant" | "user" | "warn";
+  text: string;
+  /** 修正結果のサムネイル。 */
+  image?: string | null;
+  /** どの修正に対応するか（履歴の再読込で二重に並べないため）。 */
+  stepId?: string;
+};
+
 type SessionData = {
   /** 管理者設定で Drive 保存が有効か。false でも確定（高解像度の再生成）は行える。 */
   driveEnabled: boolean;
@@ -169,13 +196,18 @@ export function AppShell({
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [sessionRuns, setSessionRuns] = useState(0);
-  const [chat, setChat] = useState<{ role: "assistant" | "user" | "warn"; text: string }[]>([
+  const [chat, setChat] = useState<ChatMessage[]>([
     {
       role: "assistant",
       text: "キャストの本人性を固定しています。6枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
     },
   ]);
   const [chatInput, setChatInput] = useState("");
+  // 個別修正（F-05）。送信中は二重送信しない。
+  const [edits, setEdits] = useState<EditStep[]>([]);
+  const [editing, setEditing] = useState(false);
+  // 修正結果の拡大表示（候補の拡大とは別に持つ）
+  const [zoomImage, setZoomImage] = useState<{ url: string; label: string } | null>(null);
   const [chatExpanded, setChatExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** 拡大表示しているスロット番号。null なら閉じている。 */
@@ -235,6 +267,36 @@ export function AppShell({
 
   const sessionTitle = manualTitle ?? autoTitle;
 
+  // ── 修正履歴をチャットへ映す（ページを開き直しても履歴が見えるように） ──
+  useEffect(() => {
+    if (edits.length === 0) return;
+    setChat((current) => {
+      const known = new Set(current.map((m) => m.stepId).filter(Boolean));
+      const missing = edits.filter((step) => !known.has(step.id));
+      if (missing.length === 0) return current;
+      const appended: ChatMessage[] = [];
+      for (const step of missing) {
+        appended.push({ role: "user", text: step.instruction, stepId: `${step.id}:u` });
+        appended.push(
+          step.status === "succeeded"
+            ? {
+                role: "assistant",
+                stepId: step.id,
+                image: step.url,
+                text: `修正 ${step.stepNo} 回目${step.provider ? `（${PROVIDER_LABEL_SHORT[step.provider]}）` : ""}`,
+              }
+            : {
+                role: "warn",
+                stepId: step.id,
+                text: `修正 ${step.stepNo} 回目は失敗しました${step.errorKind === "policy" ? "（内容の判定により拒否）" : ""}。`,
+              },
+        );
+      }
+      return [...current, ...appended];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edits]);
+
   // ── ジョブのポーリング（できたスロットから埋まる） ──
   useEffect(() => {
     if (!jobId) return;
@@ -247,6 +309,7 @@ export function AppShell({
 
       setSlots(data.slots as Slot[]);
       setFinalImage((data.final ?? null) as FinalImage | null);
+      setEdits((data.edits ?? []) as EditStep[]);
 
       const pending = (data.slots as Slot[]).some(
         (s) => s.status === "queued" || s.status === "running",
@@ -273,6 +336,7 @@ export function AppShell({
     setJobId(null);
     setSlots([]);
     setFinalImage(null);
+    setEdits([]);
     setSelectedSlot(null);
     setGateMessage(null);
     setModerationWarning(null);
@@ -427,7 +491,7 @@ export function AppShell({
 
   // Esc と端末の戻るで閉じる
   useEffect(() => {
-    if (zoomSlot === null) return;
+    if (zoomSlot === null && zoomImage === null) return;
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -435,7 +499,10 @@ export function AppShell({
         history.back();
       }
     };
-    const onPop = () => setZoomSlot(null);
+    const onPop = () => {
+      setZoomSlot(null);
+      setZoomImage(null);
+    };
 
     window.addEventListener("keydown", onKey);
     window.addEventListener("popstate", onPop);
@@ -448,7 +515,7 @@ export function AppShell({
       window.removeEventListener("popstate", onPop);
       document.body.style.overflow = previousOverflow;
     };
-  }, [zoomSlot]);
+  }, [zoomSlot, zoomImage]);
 
   function pushChat(role: "assistant" | "user" | "warn", text: string) {
     setChat((current) => [...current, { role, text }]);
@@ -553,6 +620,7 @@ export function AppShell({
     setSelectedSlot(null);
     setSlots([]);
     setFinalImage(null);
+    setEdits([]);
 
     const form = new FormData();
     form.set("source", file);
@@ -630,6 +698,7 @@ export function AppShell({
     setJobId(null);
     setSlots([]);
     setFinalImage(null);
+    setEdits([]);
     setSelectedSlot(null);
     setManualTitle(null);
     setSessionRuns(0);
@@ -651,21 +720,117 @@ export function AppShell({
     setShowCastRegister(false);
   }
 
-  function sendChatMessage() {
+  /**
+   * 個別修正（仕様書 F-05 逐次編集）。
+   *
+   * 次の指示を「何に」適用するかは、選んでいる候補で決まる：
+   *   - 直前の修正と同じ候補を選んだまま → 直前の修正結果に重ねる（逐次）
+   *   - 別の候補を選んだ            → その候補（原本）から系統をやり直す
+   * 5 回を超えると劣化が蓄積するので、サーバーが警告を返す（止めはしない）。
+   *
+   * ★ 自由文をそのまま送る（委託者判断・2026-09-16）。指示の全文はサーバーで記録される。
+   */
+  async function sendChatMessage() {
     const text = chatInput.trim();
-    if (!text) return;
+    if (!text || editing || !jobId) return;
     if (selectedSlot === null) {
-      pushChat("warn", "先に修正対象の候補画像を1枚選択してください（逐次編集は選択画像を入力とします）。");
+      pushChat("warn", "先に修正対象の候補画像を 1 枚選択してください（逐次編集は選択画像を入力とします）。");
       return;
     }
+
+    const base = editBase();
+    const fromDraftSlot = base.kind === "draft" ? base.slot : null;
+
     pushChat("user", text);
     setChatInput("");
-    // ★ F-05（逐次編集）はこの体験環境では未実装。
-    //   もっともらしい応答を返すと「効いているのに見た目が変わらない」と誤解される。
+    setEditing(true);
     pushChat(
       "assistant",
-      "個別修正（F-05 逐次編集）は、この体験環境ではまだ実装されていません。指示は送信されておらず、画像は変更されていません。現時点では STEP 2 の条件を変えて 6 枚を作り直してください。",
+      base.kind === "draft"
+        ? `候補${base.slot + 1}の原本に適用しています…`
+        : `修正 ${base.stepNo} 回目の結果に重ねて適用しています…`,
     );
+
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ instruction: text, fromDraftSlot }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        message?: string;
+        stepId?: string;
+        stepNo?: number;
+        chainLength?: number;
+        warning?: string | null;
+        provider?: "openai" | "google";
+        costUsd?: number;
+        latencyMs?: number;
+        url?: string | null;
+      } | null;
+
+      if (!data) {
+        pushChat("warn", "修正の結果を読み取れませんでした。");
+        return;
+      }
+      if (!data.ok) {
+        pushChat("warn", data.message ?? "修正できませんでした。");
+        return;
+      }
+
+      setChat((current) => [
+        ...current,
+        {
+          role: "assistant",
+          stepId: data.stepId,
+          image: data.url ?? null,
+          text:
+            `修正 ${data.stepNo} 回目ができました` +
+            (data.provider ? `（${PROVIDER_LABEL_SHORT[data.provider]}` : "（") +
+            (data.costUsd !== undefined ? `・$${data.costUsd.toFixed(3)}` : "") +
+            (data.latencyMs !== undefined ? `・${(data.latencyMs / 1000).toFixed(1)} 秒` : "") +
+            "）。タップで拡大。続けて指示すると、この結果に重ねて適用します。",
+        },
+      ]);
+      if (data.warning) pushChat("warn", data.warning);
+
+      await refreshJob();
+      void reloadSession();
+    } catch (error) {
+      pushChat("warn", `修正を依頼できませんでした: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setEditing(false);
+    }
+  }
+
+  /** 現在の系統の根＝最後に「候補から」始めた修正の候補番号。 */
+  function chainRootSlot(): number | null {
+    for (let i = edits.length - 1; i >= 0; i -= 1) {
+      const step = edits[i]!;
+      if (step.sourceKind === "draft") return step.sourceSlot;
+    }
+    return null;
+  }
+
+  /** 次の指示（または確定）が対象にする画像。 */
+  function editBase():
+    | { kind: "draft"; slot: number }
+    | { kind: "step"; stepId: string; stepNo: number; url: string | null } {
+    const last = [...edits].reverse().find((step) => step.status === "succeeded");
+    if (last && selectedSlot !== null && selectedSlot === chainRootSlot()) {
+      return { kind: "step", stepId: last.id, stepNo: last.stepNo, url: last.url };
+    }
+    return { kind: "draft", slot: selectedSlot ?? 0 };
+  }
+
+  function openZoomImage(url: string, label: string) {
+    setZoomImage({ url, label });
+    try {
+      history.pushState({ zoomImage: true }, "");
+    } catch {
+      /* 履歴が使えなくても拡大表示自体は動かす */
+    }
   }
 
   function saveImage(slot: Slot) {
@@ -706,11 +871,19 @@ export function AppShell({
       return;
     }
 
+    // 修正を経た系統の候補を確定するなら、最後の修正結果が「選んだ 1 枚」（仕様書 STEP 4 → STEP 5）
+    const base =
+      slot.slot === chainRootSlot()
+        ? [...edits].reverse().find((step) => step.status === "succeeded") ?? null
+        : null;
+
     if (finalImage?.status !== "succeeded") {
       const price = session?.finalUnitUsd ?? null;
       const yen = price === null ? null : Math.round(price * 150).toLocaleString("ja-JP");
       const ok = window.confirm(
-        `候補${slot.slot + 1}を確定します。\n\n` +
+        (base
+          ? `候補${slot.slot + 1}の修正 ${base.stepNo} 回目の結果を確定します。\n\n`
+          : `候補${slot.slot + 1}を確定します。\n\n`) +
           `${session?.finalResolution?.toUpperCase() ?? "2K"} で作り直してから Drive へ保存します。` +
           (price === null ? "" : `\n実費の見込み：約 $${price.toFixed(2)}（約${yen}円）`) +
           "\n\n★ 引き伸ばしではなく作り直しのため、候補と完全に同じ絵にはなりません。",
@@ -725,7 +898,7 @@ export function AppShell({
       const response = await fetch(`/api/jobs/${jobId}/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slot: slot.slot }),
+        body: JSON.stringify({ slot: slot.slot, stepId: base?.id ?? null }),
       });
       const data = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -766,6 +939,7 @@ export function AppShell({
     if (!response.ok || !data?.ok) return;
     setSlots(data.slots as Slot[]);
     setFinalImage((data.final ?? null) as FinalImage | null);
+    setEdits((data.edits ?? []) as EditStep[]);
   }
 
   async function signOut() {
@@ -1472,50 +1646,65 @@ export function AppShell({
                             openZoom(slot.slot);
                           }}
                         />
+                        {/* ★ 2 段に分ける。1 段に詰めると狭い画面でラベルが 1 文字ずつ縦に折れ、
+                            バッジがボタンに重なった（実際にそうなった）。
+                            上段＝何の候補か（ラベル・プロバイダ）、下段＝操作ボタン。 */}
                         <div className="result-actions">
-                          <span className="result-badge">{label}</span>
-                          {fallbackBadge}
-                          {providerBadge}
-                          {methodBadge}
-                          <button
-                            className="action-icon-btn"
-                            title="拡大して見る"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openZoom(slot.slot);
-                            }}
-                          >
-                            <i className="fa-solid fa-magnifying-glass-plus" />
-                          </button>
-                          <button
-                            className="action-icon-btn"
-                            title="ダウンロード"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveImage(slot);
-                            }}
-                          >
-                            <i className="fa-solid fa-floppy-disk" />
-                          </button>
-                          {/* 確定（仕様書 STEP 5）：高解像度で作り直して Drive へ保存する。
-                              実費がかかるので、押す前に金額を確認させる。 */}
-                          <button
-                            className={`action-icon-btn${confirmClass(finalImage, slot.slot)}`}
-                            title={confirmTitle(finalImage, slot.slot, session)}
-                            disabled={confirming}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void confirmSelection(slot);
-                            }}
-                          >
-                            {confirming ? (
-                              <i className="fa-solid fa-spinner fa-spin" />
-                            ) : isConfirmed(finalImage, slot.slot) ? (
-                              <i className="fa-solid fa-circle-check" />
-                            ) : (
-                              <i className="fa-solid fa-star" />
-                            )}
-                          </button>
+                          <div className="result-meta">
+                            <span className="result-badge">{label}</span>
+                            {fallbackBadge}
+                            {providerBadge}
+                            {methodBadge}
+                          </div>
+                          <div className="result-buttons">
+                            <button
+                              className="action-icon-btn"
+                              title="拡大して見る"
+                              aria-label="拡大して見る"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openZoom(slot.slot);
+                              }}
+                            >
+                              <i className="fa-solid fa-magnifying-glass-plus" />
+                              <span className="action-label">拡大</span>
+                            </button>
+                            <button
+                              className="action-icon-btn"
+                              title="ダウンロード"
+                              aria-label="ダウンロード"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                saveImage(slot);
+                              }}
+                            >
+                              <i className="fa-solid fa-floppy-disk" />
+                              <span className="action-label">保存</span>
+                            </button>
+                            {/* 確定（仕様書 STEP 5）：高解像度で作り直して Drive へ保存する。
+                                実費がかかるので、押す前に金額を確認させる。 */}
+                            <button
+                              className={`action-icon-btn confirm${confirmClass(finalImage, slot.slot)}`}
+                              title={confirmTitle(finalImage, slot.slot, session)}
+                              aria-label="この 1 枚で確定"
+                              disabled={confirming}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void confirmSelection(slot);
+                              }}
+                            >
+                              {confirming ? (
+                                <i className="fa-solid fa-spinner fa-spin" />
+                              ) : isConfirmed(finalImage, slot.slot) ? (
+                                <i className="fa-solid fa-circle-check" />
+                              ) : (
+                                <i className="fa-solid fa-star" />
+                              )}
+                              <span className="action-label">
+                                {isConfirmed(finalImage, slot.slot) ? "確定済" : "確定"}
+                              </span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1609,25 +1798,49 @@ export function AppShell({
               <div className="chat-history" ref={chatRef}>
                 {chat.map((message, index) => (
                   <div
-                    key={index}
+                    key={message.stepId ?? index}
                     className={`msg ${message.role === "warn" ? "system-warn" : message.role}`}
                   >
                     {message.role === "warn" && <i className="fa-solid fa-triangle-exclamation" />}{" "}
                     {message.text}
+                    {message.image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={message.image}
+                        alt="修正結果"
+                        className="chat-thumb"
+                        onClick={() => openZoomImage(message.image!, "修正結果")}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
+              {/* 次の指示が何に適用されるかを、送る前に見せる（逐次か原本からか） */}
+              {jobId && selectedSlot !== null && slots.some((s) => s.status === "succeeded") && (
+                <div className="chat-base-hint">
+                  {(() => {
+                    const base = editBase();
+                    return base.kind === "step"
+                      ? `次の指示は「修正 ${base.stepNo} 回目の結果」に重ねて適用します。別の候補を選ぶと、その候補の原本からやり直せます。`
+                      : `次の指示は「候補${base.slot + 1}の原本」に適用します。`;
+                  })()}
+                </div>
+              )}
               <div className="chat-input-area">
                 <input
                   type="text"
                   placeholder="選択中の候補への部分修正指示を入力..."
                   value={chatInput}
+                  disabled={editing}
+                  maxLength={300}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") sendChatMessage();
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) void sendChatMessage();
                   }}
                 />
-                <button onClick={sendChatMessage}>送信</button>
+                <button onClick={() => void sendChatMessage()} disabled={editing}>
+                  {editing ? "生成中…" : "送信"}
+                </button>
               </div>
             </div>
           </div>
@@ -1635,6 +1848,36 @@ export function AppShell({
       </div>
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      {/* ── 修正結果の拡大表示 ── */}
+      {zoomImage && (
+        <div
+          className="lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${zoomImage.label} の拡大表示`}
+          onClick={() => history.back()}
+        >
+          <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+            <span className="lightbox-title">{zoomImage.label}</span>
+            <button
+              className="lightbox-btn close"
+              onClick={(e) => {
+                e.stopPropagation();
+                history.back();
+              }}
+              aria-label="閉じる"
+              title="閉じる"
+            >
+              <i className="fa-solid fa-xmark" /> 閉じる
+            </button>
+          </div>
+          <div className="lightbox-body">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={zoomImage.url} alt={zoomImage.label} onClick={(e) => e.stopPropagation()} />
+          </div>
+        </div>
+      )}
 
       {/* ── 拡大表示 ──
           閉じる手段を 4 つ用意する：× ボタン／背景タップ／Esc／端末の戻る。
