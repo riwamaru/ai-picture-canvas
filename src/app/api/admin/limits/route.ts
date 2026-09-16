@@ -98,6 +98,7 @@ export async function PATCH(request: Request) {
   num("daily_max_images", 0, 2000);
   num("global_min_interval_ms", 0, 600_000);
   num("user_min_interval_ms", 0, 600_000);
+  num("edit_min_interval_ms", 0, 600_000);
   num("default_user_max_images", 1, 500);
   num("images_per_job", 1, 6);
   if (body.variant_strategy === "identical" || body.variant_strategy === "micro_delta") {

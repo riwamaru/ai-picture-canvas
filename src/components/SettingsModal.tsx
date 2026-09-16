@@ -21,6 +21,7 @@ type Limits = {
   daily_max_images: number;
   global_min_interval_ms: number;
   user_min_interval_ms: number;
+  edit_min_interval_ms: number;
   default_user_max_images: number;
   images_per_job: number;
   variant_strategy: "identical" | "micro_delta";
@@ -258,12 +259,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div className="setting-field">
-              <label>1 人あたりの呼び出し間隔（ミリ秒）</label>
+              <label>1 人あたりの呼び出し間隔（ミリ秒・6 枚生成と確定）</label>
               <input
                 type="number"
                 step="1000"
                 value={limits?.user_min_interval_ms ?? 0}
                 onChange={(e) => void patch({ user_min_interval_ms: Number(e.target.value) })}
+              />
+            </div>
+            <div className="setting-field">
+              <label>個別修正の呼び出し間隔（ミリ秒・逐次編集だけ）</label>
+              <input
+                type="number"
+                step="1000"
+                value={limits?.edit_min_interval_ms ?? 0}
+                onChange={(e) => void patch({ edit_min_interval_ms: Number(e.target.value) })}
               />
             </div>
             <div className="setting-field">

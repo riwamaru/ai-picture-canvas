@@ -181,10 +181,12 @@ export async function runEditStep(
 
   // ── 上限（★ ここを迂回する経路を作ってはならない） ──
   const perImageUsd = Math.max(...usable.map((name) => estimateOne(name, false, DEMO_RESOLUTION)));
+  // ★ p_kind: 'edit' で、6 枚生成とは別の短い間隔（edit_min_interval_ms）が使われる
   const { data: reservation, error: reserveError } = await admin.rpc("reserve_generation", {
     p_user: input.userId,
     p_est_cost: perImageUsd,
     p_count: 1,
+    p_kind: "edit",
   });
   if (reserveError) return { ok: false, reason: "failed", message: `上限の確認に失敗しました: ${reserveError.message}` };
   const reserved = reservation as { ok: boolean; message?: string; day?: string; retry_after_seconds?: number };
