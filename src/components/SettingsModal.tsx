@@ -290,7 +290,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 type="number"
                 min={1}
                 max={6}
-                value={limits?.images_per_job ?? 6}
+                value={limits?.images_per_job ?? 4}
                 onChange={(e) => void patch({ images_per_job: Number(e.target.value) })}
               />
             </div>

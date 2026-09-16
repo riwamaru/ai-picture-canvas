@@ -31,7 +31,7 @@ type Slot = {
 
 /**
  * 確定画像（仕様書 STEP 5）。選んだ 1 枚を高解像度で作り直したもの。
- * Drive へ入るのはこれだけで、ドラフト 6 枚は Supabase 側に留まる。
+ * Drive へ入るのはこれだけで、ドラフト 4 枚は Supabase 側に留まる。
  */
 type FinalImage = {
   sourceSlot: number;
@@ -152,14 +152,30 @@ function confirmTitle(final: FinalImage | null, slot: number, session: SessionDa
 
 const CHAT_INTRO: ChatMessage = {
   role: "assistant",
-  text: "キャストの本人性を固定しています。6枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
+  text: "キャストの本人性を固定しています。4枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
 };
 
+/** 実際の段階名（DB・PoC と同じ）。古いセッション（強まで作っていた頃）の表示に使う。 */
 const STRENGTH_LABEL: Record<MakeupStrength, string> = {
   weak: "弱",
   medium: "中",
   strong: "強",
 };
+
+/**
+ * 画面での呼び名（委託者指示・2026-09-16）。
+ *
+ * 生成するのは弱・中の 2 段階だが、画面では「中」を「強」と呼ぶ。
+ * プロンプトも DB の記録も変えていない。変えたのは呼び名だけ。
+ *
+ * ★ 「強」まで作っていた頃のセッションを履歴から開いたときは、実際の段階名で出す。
+ *   そうしないと中と強の両方に「強」が付いて見分けられなくなる。
+ */
+function strengthLabel(strength: MakeupStrength, slots: Slot[]): string {
+  const legacy = slots.some((s) => s.makeupStrength === "strong");
+  if (legacy) return STRENGTH_LABEL[strength];
+  return strength === "medium" ? "強" : STRENGTH_LABEL[strength];
+}
 
 /** 確定 UI の店舗・キャストの候補（datalist）。 */
 const STORE_OPTIONS = ["THE ESPERANZA", "ESPERANZA ANNEX", "クラブ ピア", "いたずらBUNNYちゃん"];
@@ -632,8 +648,8 @@ export function AppShell({
               : base + "マスク領域のみを修復し、マスク外は変更していません。";
           })()
         : `${
-            // 枚数は設定（images_per_job）で変わる。6 枚のときだけ「各2枚」と言う。
-            finished.length === 6 ? "メイク強度「弱・中・強」各2枚、計6枚" : `計${finished.length}枚`
+            // 枚数は設定（images_per_job）で変わる。4 枚のときだけ「各2枚」と言う。
+            finished.length === 4 ? "メイク強度「弱・強」各2枚、計4枚" : `計${finished.length}枚`
           }のドラフト候補（1K）を生成しました。成功 ${ok} 枚。反映レイヤー：${activeCats.join("・")}。${removal}`;
 
     if (fellBack > 0) {
@@ -1430,13 +1446,14 @@ export function AppShell({
                         <div>
                           加工強度の選択は不要です。AIが
                           <strong>
-                            「弱」「中」「強」の各強度で2枚ずつ、合計6枚のドラフト候補（1K・低解像度）を出力
+                            「弱」「強」の各強度で2枚ずつ、合計4枚のドラフト候補（1K・低解像度）を出力
                           </strong>
                           します。生成後、右カラムの候補から気に入った1枚を選べます。
                           <div className="make-strength-chips">
-                            {catalog.makeupStrengths.map((strength) => (
-                              <span key={strength.id} className="make-strength-chip">
-                                {strength.labelJa} × 2枚
+                            {/* 画面上の呼び名は弱・強（実際に作るのは弱・中）。strengthLabel と同じ対応 */}
+                            {["弱", "強"].map((label) => (
+                              <span key={label} className="make-strength-chip">
+                                {label} × 2枚
                               </span>
                             ))}
                           </div>
@@ -1532,7 +1549,7 @@ export function AppShell({
                     ? "生成中…"
                     : mode === "removal"
                       ? "除去を実行（1枚）"
-                      : "ドラフト6枚を生成（非同期ジョブ）"}
+                      : "ドラフト4枚を生成（非同期ジョブ）"}
                 </button>
               </div>
 
@@ -1574,7 +1591,7 @@ export function AppShell({
                 <div className="results-header">
                   <h4>
                     <i className="fa-regular fa-images" />{" "}
-                    {mode === "removal" ? "除去結果（1枚）" : "生成候補（6枚 / 弱・中・強 各2枚）"}
+                    {mode === "removal" ? "除去結果（1枚）" : "生成候補（4枚 / 弱・強 各2枚）"}
                   </h4>
                   {slots.length > 0 && (
                     <div className="job-progress" style={{ display: "flex" }}>
@@ -1628,7 +1645,7 @@ export function AppShell({
                     const label =
                       mode === "removal"
                         ? "マスク領域の修復"
-                        : `${STRENGTH_LABEL[slot.makeupStrength]} - パターン${slot.variant === 1 ? "A" : "B"}`;
+                        : `${strengthLabel(slot.makeupStrength, slots)} - パターン${slot.variant === 1 ? "A" : "B"}`;
 
                     // どのプロバイダが作ったか（フォールバックした場合は経緯も）
                     const providerBadge = slot.provider ? (
@@ -1972,7 +1989,7 @@ export function AppShell({
           const label =
             mode === "removal"
               ? "マスク領域の修復"
-              : `${STRENGTH_LABEL[slot.makeupStrength]} - パターン${slot.variant === 1 ? "A" : "B"}`;
+              : `${strengthLabel(slot.makeupStrength, slots)} - パターン${slot.variant === 1 ? "A" : "B"}`;
 
           return (
             <div

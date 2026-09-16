@@ -14,7 +14,7 @@ import { classifyError } from "./vendor/providers/errors";
 import { estimateCost } from "./vendor/providers/pricing";
 import type { ImageProvider, Resolution } from "./vendor/providers/types";
 import { buildPrompt, type CategoryInput } from "./vendor/prompts/build";
-import { MAKEUP_STRENGTHS, type CategoryId, type MakeupStrength } from "./vendor/prompts/categories";
+import type { CategoryId, MakeupStrength } from "./vendor/prompts/categories";
 import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
 import { notifyJobFinished, type SlackSettings } from "./slack";
 
@@ -59,14 +59,27 @@ export type SlotSpec = {
   variant: VariantIndex;
 };
 
-/** 通常加工のスロット定義：弱・中・強 × 各 2 枚。並び順は確定 UI と同じ。 */
+/**
+ * 通常加工で実際に生成する強度。
+ *
+ * ★ 委託者指示（2026-09-16）：生成するのは「弱」と「中」の 2 段階 × 各 2 枚 ＝ 4 枚。
+ *   「強」のプロンプトは使わない。画面では「中」を「強」と表示する。
+ *
+ *   プロンプトは一切変えていない。変わったのは「どの段階を作るか」と「画面の呼び名」だけ。
+ *   DB の makeup_strength には実際に使った段階（weak / medium）をそのまま残す。
+ *   表示名で記録を上書きすると、後から PoC の測定と突き合わせられなくなる。
+ *   呼び名の対応は画面側（AppShell の strengthLabel）にだけ置く。
+ */
+export const GENERATED_STRENGTHS: readonly MakeupStrength[] = ["weak", "medium"];
+
+/** 通常加工のスロット定義：GENERATED_STRENGTHS × 各 2 枚。並び順は確定 UI と同じ。 */
 export function buildSlotSpecs(mode: JobMode): SlotSpec[] {
   // 除去は強度の軸を持たない（マスク領域の中身を作り直すだけ）。1 枚だけ。
   if (mode === "removal") {
     return [{ slot: 0, makeupStrength: "medium", variant: 1 }];
   }
   const slots: SlotSpec[] = [];
-  for (const strength of MAKEUP_STRENGTHS) {
+  for (const strength of GENERATED_STRENGTHS) {
     for (const variant of [1, 2] as const) {
       slots.push({ slot: slots.length, makeupStrength: strength, variant });
     }

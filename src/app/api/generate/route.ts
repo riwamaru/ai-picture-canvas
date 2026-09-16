@@ -278,7 +278,7 @@ export async function POST(request: Request) {
   const slots =
     jobMode === "removal"
       ? buildSlotSpecs("removal")
-      : buildSlotSpecs("normal").slice(0, limits?.images_per_job ?? 6);
+      : buildSlotSpecs("normal").slice(0, limits?.images_per_job ?? 4);
   let builtHashes: string[];
   let templateVersion: string;
   try {

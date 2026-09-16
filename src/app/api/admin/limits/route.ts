@@ -100,7 +100,8 @@ export async function PATCH(request: Request) {
   num("user_min_interval_ms", 0, 600_000);
   num("edit_min_interval_ms", 0, 600_000);
   num("default_user_max_images", 1, 500);
-  num("images_per_job", 1, 6);
+  // 生成する強度が弱・中の 2 段階になったので、1 回の上限は 4 枚
+  num("images_per_job", 1, 4);
   if (body.variant_strategy === "identical" || body.variant_strategy === "micro_delta") {
     patch.variant_strategy = body.variant_strategy;
   }
