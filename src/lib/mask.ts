@@ -105,6 +105,20 @@ export async function prepareSource(input: Buffer): Promise<Buffer> {
 }
 
 /**
+ * 参考画像（種別 B）の正規化。
+ *
+ * 元画像より小さくてよい（見本として渡すだけで、画素をそのまま使うわけではない）。
+ * 大きいまま送ると入力トークンが増えて料金と時間が伸びる。
+ */
+export async function prepareReference(input: Buffer): Promise<Buffer> {
+  return sharp(input)
+    .rotate()
+    .resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
+/**
  * ═══════════════════════════════════════════════════════════════
  * ここから下は semantic masking（言葉と目印で範囲を伝える方式）のための処理。
  *

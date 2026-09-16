@@ -79,6 +79,7 @@ type RestorableJob = {
   templateIds: Record<string, string>;
   freeTexts: Record<string, string>;
   sourceUrl: string | null;
+  referenceUrls: Record<string, string[]>;
 };
 
 type ChatMessage = {
@@ -151,6 +152,22 @@ function confirmTitle(final: FinalImage | null, slot: number, session: SessionDa
     : `この 1 枚を ${resolution} で作り直して確定する（実費の見込み 約 $${price.toFixed(2)}）`;
 }
 
+/** 参考画像の上限（仕様書 4.2.5 の初期値。サーバー側 REFERENCE_LIMIT と同じ）。 */
+const REF_PER_CATEGORY = 2;
+const REF_PER_SESSION = 6;
+
+/** File のサムネイル。object URL を描画のたびに作らず、外れたら解放する。 */
+function FileThumb({ file, alt }: { file: File; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return url ? <img src={url} alt={alt} /> : null;
+}
+
 const CHAT_INTRO: ChatMessage = {
   role: "assistant",
   text: "キャストの本人性を固定しています。4枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。",
@@ -218,6 +235,9 @@ export function AppShell({
   const [enabled, setEnabled] = useState<Partial<Record<CategoryId, boolean>>>({});
   const [templateIds, setTemplateIds] = useState<Partial<Record<CategoryId, string>>>({});
   const [freeTexts, setFreeTexts] = useState<Partial<Record<CategoryId, string>>>({});
+  // 参考画像（種別 B・仕様書 4.2.5）。各カテゴリ 2 枚・合計 6 枚まで。
+  const [refFiles, setRefFiles] = useState<Partial<Record<CategoryId, File[]>>>({});
+  const [refDragOver, setRefDragOver] = useState<CategoryId | null>(null);
   const [maskStrokes, setMaskStrokes] = useState(0);
   const [rights, setRights] = useState(false);
 
@@ -398,6 +418,48 @@ export function AppShell({
         // 取れなくても結果の閲覧はできる。再生成だけができない
       }
     }
+
+    // 参考画像も File に戻す（「同じ条件でもう 1 回」を成立させるため）
+    const restored: Partial<Record<CategoryId, File[]>> = {};
+    for (const [categoryId, urls] of Object.entries(job.referenceUrls ?? {})) {
+      const files: File[] = [];
+      for (const [index, url] of urls.entries()) {
+        try {
+          const blob = await fetch(url).then((r) => (r.ok ? r.blob() : null));
+          if (blob) files.push(new File([blob], `ref-${index + 1}.png`, { type: blob.type || "image/png" }));
+        } catch {
+          /* 1 枚取れなくても他は戻す */
+        }
+      }
+      if (files.length > 0) restored[categoryId as CategoryId] = files;
+    }
+    setRefFiles(restored);
+  }
+
+  /** 参考画像を足す（各カテゴリ 2 枚・合計 6 枚まで。超えたぶんは捨てて知らせる）。 */
+  function addReferences(categoryId: CategoryId, incoming: File[]) {
+    const images = incoming.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return;
+    setRefFiles((current) => {
+      const total = Object.values(current).reduce((n, list) => n + (list?.length ?? 0), 0);
+      const mine = current[categoryId] ?? [];
+      const roomHere = Math.max(0, REF_PER_CATEGORY - mine.length);
+      const roomAll = Math.max(0, REF_PER_SESSION - total);
+      const accepted = images.slice(0, Math.min(roomHere, roomAll));
+      if (accepted.length < images.length) {
+        setGateMessage(
+          `参考画像は各カテゴリ ${REF_PER_CATEGORY} 枚・合計 ${REF_PER_SESSION} 枚までです。超えたぶんは追加していません。`,
+        );
+      }
+      return accepted.length === 0 ? current : { ...current, [categoryId]: [...mine, ...accepted] };
+    });
+  }
+
+  function removeReference(categoryId: CategoryId, index: number) {
+    setRefFiles((current) => {
+      const next = (current[categoryId] ?? []).filter((_, i) => i !== index);
+      return { ...current, [categoryId]: next };
+    });
   }
 
   /** 履歴のセッションを開く。 */
@@ -751,6 +813,14 @@ export function AppShell({
       JSON.stringify({ selections, removalType: templateIds.tattoo_removal ?? null }),
     );
 
+    // 参考画像（種別 B）。有効なカテゴリのぶんだけ送る（無効カテゴリの参考画像は送らない：仕様書 2.2.1）
+    if (mode === "normal") {
+      for (const category of catalog.categories) {
+        if (!category.acceptsReferences || !enabled[category.id]) continue;
+        for (const ref of refFiles[category.id] ?? []) form.append(`ref:${category.id}`, ref);
+      }
+    }
+
     if (removalOn) {
       const blob = await maskRef.current?.toBlob();
       if (!blob) {
@@ -791,6 +861,7 @@ export function AppShell({
     setEnabled({});
     setTemplateIds({});
     setFreeTexts({});
+    setRefFiles({});
     setMaskStrokes(0);
     setRights(false);
     setJobId(null);
@@ -1519,11 +1590,60 @@ export function AppShell({
                     {category.acceptsReferences && (
                       <div className="input-group full-width">
                         <label>
-                          参考画像をアップロード<span className="recommend-tag">未対応</span>
+                          参考画像をアップロード
+                          <span className="recommend-tag">
+                            任意・{(refFiles[category.id] ?? []).length}/{REF_PER_CATEGORY} 枚
+                          </span>
                         </label>
-                        <div className="ref-drop" style={{ cursor: "not-allowed", opacity: 0.65 }}>
-                          <i className="fa-solid fa-circle-info" />{" "}
-                          参考画像（種別B）はこの体験環境では未対応です。下のテンプレートから選んでください
+                        {(refFiles[category.id] ?? []).length > 0 && (
+                          <div className="ref-thumbs">
+                            {(refFiles[category.id] ?? []).map((ref, index) => (
+                              <div key={`${ref.name}-${index}`} className="ref-thumb">
+                                <FileThumb file={ref} alt={`参考画像 ${index + 1}`} />
+                                <button
+                                  type="button"
+                                  className="ref-remove"
+                                  title="外す"
+                                  aria-label="この参考画像を外す"
+                                  onClick={() => removeReference(category.id, index)}
+                                >
+                                  <i className="fa-solid fa-xmark" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(refFiles[category.id] ?? []).length < REF_PER_CATEGORY && (
+                          <label
+                            className={`ref-drop${refDragOver === category.id ? " dragover" : ""}`}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setRefDragOver(category.id);
+                            }}
+                            onDragLeave={() => setRefDragOver(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setRefDragOver(null);
+                              addReferences(category.id, Array.from(e.dataTransfer.files));
+                            }}
+                          >
+                            <i className="fa-solid fa-image" />{" "}
+                            見本にしたい{category.titleJa.replace(/設定|指定/g, "")}の写真を追加（各 {REF_PER_CATEGORY} 枚まで）
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              hidden
+                              onChange={(e) => {
+                                addReferences(category.id, Array.from(e.target.files ?? []));
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                        <div className="ref-note">
+                          参考画像はそのまま生成 API へ送られ、テンプレートと併用されます（仕様書 4.2.5）。
+                          このカードを無効にすると送られません。
                         </div>
                       </div>
                     )}

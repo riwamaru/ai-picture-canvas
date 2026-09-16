@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: job } = await supabase
     .from("jobs")
     .select(
-      "id, status, job_mode, image_count, store_name, cast_name, session_title, category_ids, template_ids, free_texts, removal_type, source_path, mask_path, created_at, finished_at",
+      "id, status, job_mode, image_count, store_name, cast_name, session_title, category_ids, template_ids, free_texts, removal_type, source_path, mask_path, reference_paths, created_at, finished_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -123,6 +123,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const sourceSigned = job.source_path
     ? await admin.storage.from("sources").createSignedUrl(job.source_path, 3600)
     : { data: null };
+  // 参考画像（履歴から開いたときに戻すため）
+  const referenceUrls: Record<string, string[]> = {};
+  for (const [categoryId, paths] of Object.entries(
+    (job.reference_paths ?? {}) as Record<string, string[]>,
+  )) {
+    const urls: string[] = [];
+    for (const path of paths) {
+      const signed = await admin.storage.from("sources").createSignedUrl(path, 3600);
+      if (signed.data?.signedUrl) urls.push(signed.data.signedUrl);
+    }
+    referenceUrls[categoryId] = urls;
+  }
+
   const maskSigned = job.mask_path
     ? await admin.storage.from("sources").createSignedUrl(job.mask_path, 3600)
     : { data: null };
@@ -144,6 +157,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       removalType: job.removal_type,
       sourceUrl: sourceSigned.data?.signedUrl ?? null,
       maskUrl: maskSigned.data?.signedUrl ?? null,
+      referenceUrls,
       createdAt: job.created_at,
       finishedAt: job.finished_at,
     },

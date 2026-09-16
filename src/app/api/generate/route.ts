@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeMask, prepareSource } from "@/lib/mask";
+import { normalizeMask, prepareReference, prepareSource } from "@/lib/mask";
 import { MAX_UPLOAD_BYTES, OPENAI_CONFIG } from "@/lib/models";
 import {
   buildSlotPrompt,
@@ -13,7 +13,13 @@ import {
   type Selection,
 } from "@/lib/generate";
 import type { CategoryInput } from "@/lib/vendor/prompts/build";
-import { isCategoryId, PROCESS_KIND, type CategoryId } from "@/lib/vendor/prompts/categories";
+import {
+  acceptsReferenceImages,
+  isCategoryId,
+  PROCESS_KIND,
+  REFERENCE_LIMIT,
+  type CategoryId,
+} from "@/lib/vendor/prompts/categories";
 import { requireTemplate } from "@/lib/vendor/prompts/templates";
 import type { VariantStrategy } from "@/lib/vendor/prompts/variants";
 import { notifyLimitHit, type SlackSettings } from "@/lib/slack";
@@ -49,6 +55,8 @@ function parseSelection(
   raw: unknown,
   variantStrategy: VariantStrategy,
   jobMode: JobMode,
+  /** カテゴリごとの参考画像の枚数（フォームから数えたもの）。 */
+  referenceCounts: Partial<Record<CategoryId, number>>,
 ): ParsedSelection {
   if (typeof raw !== "object" || raw === null) throw new Error("選択内容を読み取れませんでした。");
   const body = raw as Record<string, unknown>;
@@ -71,7 +79,7 @@ function parseSelection(
     }
 
     const input: { templateId?: string; freeText?: string; referenceCount: number } = {
-      referenceCount: 0,
+      referenceCount: referenceCounts[categoryId] ?? 0,
     };
 
     if (typeof templateId === "string" && templateId.length > 0) {
@@ -230,12 +238,43 @@ export async function POST(request: Request) {
   //   通常加工と同じ経路に載せると「フォールバックが効くはず」という誤解を生む。
   const jobMode: JobMode = form.get("jobMode") === "removal" ? "removal" : "normal";
 
+  // ── 参考画像（種別 B・仕様書 4.2.5）を先に数えて、選択内容の検証へ渡す ──
+  //
+  //   フォームの "ref:<categoryId>" に 0〜2 枚ずつ。上限は各 2 枚・合計 6 枚
+  //   （REFERENCE_LIMIT。vendor/prompts/build.ts でも同じ値で検証される）。
+  const referenceFiles: Partial<Record<CategoryId, File[]>> = {};
+  let referenceTotal = 0;
+  for (const [key, value] of form.entries()) {
+    if (!key.startsWith("ref:") || !(value instanceof File)) continue;
+    const categoryId = key.slice(4);
+    if (!isCategoryId(categoryId) || !acceptsReferenceImages(categoryId)) {
+      return fail(400, `参考画像を受け付けないカテゴリです: ${categoryId}`);
+    }
+    if (value.size > MAX_UPLOAD_BYTES) {
+      return fail(400, `参考画像が大きすぎます（上限 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB）。`);
+    }
+    const list = (referenceFiles[categoryId] ??= []);
+    if (list.length >= REFERENCE_LIMIT.perCategory) {
+      return fail(400, `参考画像は 1 カテゴリ ${REFERENCE_LIMIT.perCategory} 枚までです。`);
+    }
+    list.push(value);
+    referenceTotal += 1;
+    if (referenceTotal > REFERENCE_LIMIT.perSession) {
+      return fail(400, `参考画像は合計 ${REFERENCE_LIMIT.perSession} 枚までです。`);
+    }
+  }
+  const referenceCounts: Partial<Record<CategoryId, number>> = {};
+  for (const [id, list] of Object.entries(referenceFiles)) {
+    referenceCounts[id as CategoryId] = list?.length ?? 0;
+  }
+
   let selection: ParsedSelection;
   try {
     selection = parseSelection(
       JSON.parse(String(form.get("selection") ?? "{}")),
       variantStrategy,
       jobMode,
+      referenceCounts,
     );
   } catch (error) {
     return fail(400, error instanceof Error ? error.message : "選択内容が不正です。");
@@ -274,6 +313,23 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── 参考画像の正規化（有効なカテゴリのぶんだけ。無効なカテゴリの参考画像は送らない：仕様書 2.2.1） ──
+  const references: { categoryId: CategoryId; index: number; png: Buffer }[] = [];
+  for (const categoryId of selection.categoryIds) {
+    const files = referenceFiles[categoryId] ?? [];
+    for (const [index, file] of files.entries()) {
+      try {
+        references.push({
+          categoryId,
+          index: index + 1,
+          png: await prepareReference(Buffer.from(await file.arrayBuffer())),
+        });
+      } catch {
+        return fail(400, `参考画像を読み込めませんでした（${categoryId}）。JPEG / PNG / WebP で試してください。`);
+      }
+    }
+  }
+
   // ── プロンプトが組めることを、上限を消費する前に確かめる ──
   const slots =
     jobMode === "removal"
@@ -299,6 +355,8 @@ export async function POST(request: Request) {
       ? { ...policy, enabled: removalFallsBack, primary: "openai", fallback: "google" }
       : policy,
     selection.requiresMask,
+    undefined,
+    references.length,
   );
   const reservedCostUsd = Number((perImageUsd * slots.length).toFixed(6));
 
@@ -384,9 +442,24 @@ export async function POST(request: Request) {
       .upload(maskPath, maskPng, { contentType: "image/png", upsert: true });
   }
 
+  // 参考画像も Storage へ。どれを使ったかをジョブに紐付けて残す（仕様書 4.2.5）
+  const referencePaths: Record<string, string[]> = {};
+  for (const reference of references) {
+    const path = `${user.id}/${job.id}/ref-${reference.categoryId}-${reference.index}.png`;
+    await admin.storage
+      .from("sources")
+      .upload(path, reference.png, { contentType: "image/png", upsert: true });
+    (referencePaths[reference.categoryId] ??= []).push(path);
+  }
+
   await admin
     .from("jobs")
-    .update({ source_path: sourcePath, mask_path: maskPath, status: "running" })
+    .update({
+      source_path: sourcePath,
+      mask_path: maskPath,
+      reference_paths: referencePaths,
+      status: "running",
+    })
     .eq("id", job.id);
 
   await admin.from("job_images").insert(
@@ -411,6 +484,7 @@ export async function POST(request: Request) {
         usageDay,
         sourcePng,
         maskPng,
+        references: references.map((reference) => reference.png),
         selection,
         slots,
         mode: jobMode,

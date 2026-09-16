@@ -221,6 +221,11 @@
         /* 参考画像 D&D エリア */
         .ref-drop { border: 1.5px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 12px; text-align: center; cursor: pointer; background: var(--bg-main); transition: all 0.2s; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
         .ref-drop:hover { border-color: var(--primary); background: var(--primary-light); color: var(--text-link); }
+        .ref-thumbs { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .ref-thumb { position: relative; width: 72px; height: 72px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-glass); background: #f1f5f9; }
+        .ref-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ref-remove { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(15,23,42,0.75); color: #fff; font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .ref-note { font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; }
         .ref-drop.dragover { border-color: var(--primary); background: rgba(14,165,233,0.06); color: var(--text-link); }
         .ref-drop i { color: var(--primary); }
 

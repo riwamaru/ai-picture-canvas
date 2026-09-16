@@ -111,8 +111,9 @@ export function estimateOne(
   provider: ProviderName,
   requiresMask: boolean,
   resolution: Resolution = DEMO_RESOLUTION,
+  referenceCount = 0,
 ): number {
-  const mode = requiresMask ? "inpaint" : "instruct";
+  const mode = requiresMask ? "inpaint" : referenceCount > 0 ? "reference" : "instruct";
   if (provider === "openai") {
     const setting = OPENAI_CONFIG.resolution[resolution];
     return estimateCost({
@@ -122,7 +123,7 @@ export function estimateOne(
       resolution,
       outputPixels: pixelsOf(setting.size),
       quality: setting.quality,
-      referenceCount: 0,
+      referenceCount,
     });
   }
   return estimateCost({
@@ -132,7 +133,7 @@ export function estimateOne(
     resolution,
     outputPixels: GOOGLE_CONFIG.resolution[resolution].pixels,
     quality: "medium",
-    referenceCount: 0,
+    referenceCount,
   });
 }
 
@@ -148,13 +149,14 @@ export function reservationUnitUsd(
   policy: FallbackPolicy,
   requiresMask: boolean,
   resolution: Resolution = DEMO_RESOLUTION,
+  referenceCount = 0,
 ): number {
   const candidates = policy.enabled
     ? [
-        estimateOne(policy.primary, requiresMask, resolution),
-        estimateOne(policy.fallback, requiresMask, resolution),
+        estimateOne(policy.primary, requiresMask, resolution, referenceCount),
+        estimateOne(policy.fallback, requiresMask, resolution, referenceCount),
       ]
-    : [estimateOne(policy.primary, requiresMask, resolution)];
+    : [estimateOne(policy.primary, requiresMask, resolution, referenceCount)];
   return Math.max(...candidates);
 }
 
@@ -183,6 +185,11 @@ type ProcessInput = {
   usageDay: string;
   sourcePng: Buffer;
   maskPng: Buffer | null;
+  /**
+   * 参考画像（種別 B・仕様書 4.2.5）。カテゴリの並び順で連ねる。
+   * 1 枚でもあれば mode を "reference" にして、そのまま API へ送る。
+   */
+  references: Buffer[];
   selection: Selection;
   slots: SlotSpec[];
   mode: JobMode;
@@ -221,6 +228,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
     usageDay,
     sourcePng,
     maskPng,
+    references,
     selection,
     slots,
     mode,
@@ -285,7 +293,13 @@ export async function processJob(input: ProcessInput): Promise<void> {
     return;
   }
 
-  const editMode = selection.requiresMask ? "inpaint" : "instruct";
+  // 参考画像があれば reference モード（元画像＋参考画像を連ねて送る）。仕様書 4.2.5。
+  const editMode = selection.requiresMask
+    ? "inpaint"
+    : references.length > 0
+      ? "reference"
+      : "instruct";
+  const referenceBytes = references.map((buffer) => new Uint8Array(buffer));
 
   // semantic masking で使う材料。除去モードで Gemini を試すときだけ作る。
   let maskRegion: MaskRegion | null = null;
@@ -356,6 +370,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
                 mode: editMode,
                 baseImage: new Uint8Array(sourcePng),
                 maskImage: maskPng ? new Uint8Array(maskPng) : undefined,
+                referenceImages: referenceBytes.length > 0 ? referenceBytes : undefined,
                 prompt: built.text,
                 resolution: DEMO_RESOLUTION,
                 variantSeedHint: built.variantSeedHint,

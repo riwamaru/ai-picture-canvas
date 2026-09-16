@@ -70,6 +70,7 @@ type JobRow = {
   removal_type: string | null;
   source_path: string;
   mask_path: string | null;
+  reference_paths: Record<string, string[]> | null;
 };
 
 type DraftRow = {
@@ -111,7 +112,7 @@ export async function finalizeJob(
   const { data: job } = await admin
     .from("jobs")
     .select(
-      "id, user_id, job_mode, category_ids, template_ids, free_texts, removal_type, source_path, mask_path",
+      "id, user_id, job_mode, category_ids, template_ids, free_texts, removal_type, source_path, mask_path, reference_paths",
     )
     .eq("id", input.jobId)
     .maybeSingle<JobRow>();
@@ -267,6 +268,10 @@ export async function finalizeJob(
   // ★ ここで作り直す条件はドラフトと同一でなければならない。
   //   条件が変わると「選んだ 1 枚を高解像度にした」ことにならない。
   const selection = rebuildSelection(job, draft.variant_strategy);
+  // 参考画像（種別 B）。ドラフトと同じものを 2K の作り直しにも渡す（無いと違う絵になる）
+  const referencePaths = editStep
+    ? []
+    : (job.category_ids as CategoryId[]).flatMap((id) => job.reference_paths?.[id] ?? []);
   const spec = {
     slot: draft.slot,
     makeupStrength: draft.makeup_strength,
@@ -313,7 +318,7 @@ export async function finalizeJob(
   // 拒否は課金されないので、実額は最後に成功した 1 回ぶんになる。
   const perImageUsd = Math.max(
     ...usable.map((attempt) =>
-      estimateOne(attempt.provider, attempt.method === "inpaint", resolution),
+      estimateOne(attempt.provider, attempt.method === "inpaint", resolution, referencePaths.length),
     ),
   );
 
@@ -395,6 +400,17 @@ export async function finalizeJob(
     return { ok: false, reason: "failed", message: "マスク画像を取得できませんでした。", errorKind: "input" };
   }
 
+  const references: Uint8Array[] = [];
+  for (const path of referencePaths) {
+    const bytes = await downloadFromStorage(admin, "sources", path);
+    if (!bytes) {
+      await failFinal(admin, finalId, "infra", "参考画像を取得できませんでした。");
+      await settle(admin, input.userId, usageDay, perImageUsd, 0, 1);
+      return { ok: false, reason: "failed", message: "参考画像を取得できませんでした。", errorKind: "infra" };
+    }
+    references.push(new Uint8Array(bytes));
+  }
+
   // semantic masking の材料（Gemini へ回すときだけ要る）
   let maskGuide: Buffer | null = null;
   let maskRegion = null;
@@ -447,9 +463,11 @@ export async function finalizeJob(
               resolution,
             }
           : {
-              mode: method === "inpaint" ? "inpaint" : "instruct",
+              mode:
+                method === "inpaint" ? "inpaint" : references.length > 0 ? "reference" : "instruct",
               baseImage: new Uint8Array(source),
               maskImage: method === "inpaint" && maskPng ? new Uint8Array(maskPng) : undefined,
+              referenceImages: references.length > 0 ? references : undefined,
               prompt: built.text,
               resolution,
               variantSeedHint: built.variantSeedHint,
@@ -579,7 +597,7 @@ function rebuildSelection(job: JobRow, variantStrategy: VariantStrategy): Select
     const templateId = job.template_ids?.[id];
     const freeText = job.free_texts?.[id];
     categories[id] = {
-      referenceCount: 0,
+      referenceCount: job.reference_paths?.[id]?.length ?? 0,
       ...(typeof templateId === "string" && templateId.length > 0 ? { templateId } : {}),
       ...(typeof freeText === "string" && freeText.length > 0 ? { freeText } : {}),
     };
