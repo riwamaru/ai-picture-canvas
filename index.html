@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Canvas - 自社専用クローズドAI画像加工システム v2.0</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --bg-input: #f1f5f9;
+            --bg-glass: rgba(0, 0, 0, 0.01);
+            --bg-glass-hover: rgba(0, 0, 0, 0.03);
+            --border-glass: #e2e8f0;
+            --border-glass-active: #0ea5e9;
+
+            --primary: #0ea5e9;
+            --primary-gradient: linear-gradient(135deg, #0ea5e9, #6366f1);
+            --primary-hover: #0284c7;
+            --primary-light: rgba(14, 165, 233, 0.06);
+
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-link: #0284c7;
+
+            /* 処理種別カラー（4.2 A/B/C系統） */
+            --type-a: #0ea5e9;   /* 指示ベース編集 */
+            --type-b: #6366f1;   /* 参照画像ベース編集 */
+            --type-c: #f59e0b;   /* マスク指定の局所修復 */
+
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 10px 20px -3px rgba(0, 0, 0, 0.03);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #app-wrapper {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #f0f4f8, #f8fafc);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+
+        /* === 1. ログイン画面 === */
+        .login-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(135deg, #e0e7ff, #f8fafc);
+            display: flex; justify-content: center; align-items: center; z-index: 9999;
+        }
+        .login-screen::before { content: ''; position: absolute; width: 400px; height: 400px; background: #38bdf8; filter: blur(140px); opacity: 0.15; top: 15%; left: 25%; }
+        .login-screen::after { content: ''; position: absolute; width: 400px; height: 400px; background: #818cf8; filter: blur(140px); opacity: 0.15; bottom: 15%; right: 25%; }
+        .login-card {
+            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(20px);
+            padding: 50px 50px 40px 50px; border-radius: 28px; box-shadow: var(--shadow-lg);
+            width: 100%; max-width: 480px; border: 1px solid rgba(255, 255, 255, 0.7);
+            text-align: center; position: relative; z-index: 10;
+        }
+        .logo-area { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 6px; }
+        .logo-icon {
+            background: var(--primary-gradient); color: #ffffff; width: 46px; height: 46px;
+            border-radius: var(--radius-md); font-weight: bold; display: flex; align-items: center;
+            justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+        }
+        .logo-text { font-size: 1.6rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.02em; }
+        .logo-badge-ver { display: inline-block; font-size: 0.7rem; font-weight: 700; color: var(--text-link); background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.15); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+        .logo-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; margin-bottom: 30px; font-weight: 400; }
+        .form-group { margin-bottom: 24px; text-align: left; }
+        .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; letter-spacing: 0.03em; }
+        .form-group input {
+            width: 100%; padding: 14px 18px; border-radius: var(--radius-md); border: 1px solid var(--border-glass);
+            background: #ffffff; color: var(--text-main); outline: none; font-size: 0.95rem;
+            transition: all 0.2s; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12); }
+        .role-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; }
+        .sb-btn {
+            background: var(--primary-gradient); color: #ffffff; border: none; padding: 16px;
+            border-radius: var(--radius-md); font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%;
+            transition: opacity 0.2s, transform 0.1s; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+        }
+        .sb-btn:hover { opacity: 0.95; transform: translateY(-1px); }
+        .sb-btn:active { transform: translateY(0); }
+        .security-notice { font-size: 0.75rem; color: var(--text-muted); margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
+
+        /* === 2. 3カラムメインコンテナ === */
+        .main-container { flex: 1; display: grid; grid-template-columns: 300px 1fr 470px; height: 100vh; overflow: hidden; position: relative; }
+        .column { height: 100%; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 22px; background: transparent; border-right: 1px solid var(--border-glass); }
+        .column:last-child { border-right: none; overflow-y: auto; justify-content: flex-start; background: #ffffff; }
+
+        /* === 左カラム === */
+        .sidebar { background-color: var(--bg-sidebar); padding: 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 2px 0 10px rgba(0,0,0,0.01); }
+        .sidebar-top { display: flex; flex-direction: column; gap: 18px; flex: 1; overflow: hidden; }
+        .app-title-area { display: flex; align-items: center; gap: 10px; padding: 4px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+        .app-title-icon { color: var(--primary); font-size: 1.3rem; }
+        .app-title-text { font-size: 1.2rem; font-weight: 700; color: var(--text-main); letter-spacing: 0.02em; }
+        .app-title-ver { font-size: 0.62rem; font-weight: 700; color: var(--text-link); background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.15); border-radius: 999px; padding: 1px 7px; margin-left: auto; }
+
+        .new-chat-btn {
+            background: #ffffff; color: var(--text-main); border: 1px solid var(--border-glass); padding: 14px;
+            border-radius: var(--radius-md); font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: left;
+            display: flex; align-items: center; gap: 12px; transition: all 0.2s; box-shadow: var(--shadow-sm);
+        }
+        .new-chat-btn:hover { background: var(--bg-input); border-color: #cbd5e1; }
+
+        /* F-10 当月生成回数・コスト簡易表示（左サイドバー） */
+        .usage-mini {
+            background: linear-gradient(135deg, rgba(14,165,233,0.05), rgba(99,102,241,0.05));
+            border: 1px solid rgba(14,165,233,0.15); border-radius: var(--radius-md); padding: 12px 14px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .usage-mini-title { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 6px; }
+        .usage-mini-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; }
+        .usage-mini-row .label { color: var(--text-muted); font-weight: 500; }
+        .usage-mini-row .value { color: var(--text-main); font-weight: 700; }
+        .usage-mini-row .value.cost { color: var(--text-link); }
+
+        .history-section { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+        .history-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; padding: 0 4px 6px 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .history-item {
+            padding: 11px 12px; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); cursor: pointer;
+            display: flex; flex-direction: column; gap: 3px; transition: all 0.2s; border: 1px solid transparent; font-weight: 500;
+        }
+        .history-item .h-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
+        .history-item .h-meta { font-size: 0.68rem; color: #94a3b8; padding-left: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item:hover { background: var(--bg-input); color: var(--text-main); }
+        .history-item.active { background: var(--primary-light); color: var(--text-link); font-weight: 600; border-color: transparent transparent transparent var(--primary); border-left: 3px solid var(--primary); }
+
+        .sidebar-bottom { border-top: 1px solid #f1f5f9; padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+        .nav-button { width: 100%; padding: 12px; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); background: transparent; border: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s; font-weight: 500; }
+        .nav-button:hover { background: var(--bg-input); color: var(--text-main); }
+
+        .user-profile { padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem; color: var(--text-muted); background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-top: 8px; }
+        .user-email { font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-role-container { display: flex; justify-content: space-between; align-items: center; }
+        .user-role-badge { background: rgba(14, 165, 233, 0.08); color: var(--text-link); font-size: 0.75rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; border: 1px solid rgba(14, 165, 233, 0.15); }
+        .logout-text { color: #f43f5e; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: color 0.2s; }
+        .logout-text:hover { color: #be123c; text-decoration: underline; }
+
+        /* === 中央カラム === */
+        .center-header { border-bottom: 1px solid var(--border-glass); padding-bottom: 16px; margin-bottom: 2px; display: flex; align-items: center; width: 100%; }
+        .title-input-wrapper { width: 100%; position: relative; }
+        .editable-title { width: 100%; font-size: 1.4rem; font-weight: 700; color: var(--text-main); border: 1px solid transparent; background: transparent; padding: 8px 12px; border-radius: var(--radius-sm); outline: none; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+        .editable-title:hover { background: rgba(0,0,0,0.03); }
+        .editable-title:focus { background: #ffffff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); cursor: text; }
+
+        .recommend-tag { color: var(--text-link); font-weight: 600; font-size: 0.72rem; margin-left: 6px; background: rgba(14, 165, 233, 0.08); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(14, 165, 233, 0.12); }
+
+        .step-heading { font-size: 0.85rem; color: var(--text-main); padding-left: 4px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: -6px; }
+        .step-heading .step-num { background: var(--text-main); color: #fff; font-size: 0.68rem; font-weight: 700; border-radius: 5px; padding: 2px 7px; letter-spacing: 0.03em; }
+
+        /* 元画像アップロード */
+        .upload-section { background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); transition: border-color 0.3s; }
+        .upload-section.dragover { border-color: var(--primary); background: rgba(14, 165, 233, 0.02); }
+        .upload-box { border: 2px dashed #cbd5e1; border-radius: var(--radius-md); padding: 26px; text-align: center; cursor: pointer; background: var(--bg-main); transition: all 0.2s; }
+        .upload-box:hover { border-color: var(--primary); background: var(--primary-light); }
+        .upload-box i { font-size: 2rem; color: var(--primary); margin-bottom: 10px; display: block; }
+        .preview-container { display: flex; gap: 20px; align-items: center; margin-top: 4px; }
+        .preview-wrap { position: relative; width: 110px; height: 145px; border-radius: var(--radius-md); overflow: hidden; display: none; background: #f1f5f9; border: 1px solid var(--border-glass); box-shadow: var(--shadow-sm); }
+        .preview-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .status-badge { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(14, 165, 233, 0.9); backdrop-filter: blur(4px); color: white; padding: 4px; font-size: 0.65rem; text-align: center; font-weight: 600; letter-spacing: 0.02em; }
+        .upload-meta-text { flex: 1; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+        .upload-meta-text strong { color: var(--text-main); font-weight: 700; }
+
+        /* 加工カテゴリカード */
+        .card { background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 16px; transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s; }
+        .card:focus-within { border-color: rgba(14, 165, 233, 0.5); box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+        .card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; color: var(--text-main); }
+        .card-title > .cat-letter { background: var(--primary-light); color: var(--primary); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; border: 1px solid rgba(14, 165, 233, 0.15); flex-shrink: 0; }
+
+        /* 処理種別バッジ（A/B/C） */
+        .type-badge { font-size: 0.66rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.02em; white-space: nowrap; }
+        .type-badge.type-a { color: var(--type-a); background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.18); }
+        .type-badge.type-b { color: var(--type-b); background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.18); }
+        .type-badge.type-c { color: var(--type-c); background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.22); }
+
+        .required-tag { background: rgba(244, 63, 94, 0.08); color: #e11d48; border: 1px solid rgba(244, 63, 94, 0.18); border-radius: 4px; padding: 2px 7px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+
+        /* 有効/無効トグル（カード右上） */
+        .card-enable { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .card-enable .enable-text { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); transition: color 0.2s; }
+        .card.enabled .card-enable .enable-text { color: var(--text-link); }
+
+        .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 999px; transition: background 0.2s; }
+        .switch .slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px; background: #ffffff; border-radius: 50%; transition: transform 0.2s; box-shadow: var(--shadow-sm); }
+        .switch input:checked + .slider { background: var(--primary); }
+        .switch input:checked + .slider::before { transform: translateX(18px); }
+        .switch input:focus-visible + .slider { box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15); }
+
+        /* 無効化されたカード本体 */
+        .card-body { display: flex; flex-direction: column; gap: 16px; transition: opacity 0.2s; }
+        .card.disabled .card-body { opacity: 0.4; pointer-events: none; filter: grayscale(0.3); }
+        .card.disabled { background: #fcfcfd; }
+
+        .card-grid-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group.full-width { grid-column: span 2; }
+        .input-group label { display: flex; align-items: center; font-size: 0.78rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.02em; }
+        .input-group select, .input-group input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: #ffffff; color: var(--text-main); outline: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); font-family: inherit; }
+        .input-group select:focus, .input-group input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08); }
+        .input-group select option { background: #ffffff; color: var(--text-main); }
+
+        /* 参考画像 D&D エリア */
+        .ref-drop { border: 1.5px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 12px; text-align: center; cursor: pointer; background: var(--bg-main); transition: all 0.2s; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .ref-drop:hover { border-color: var(--primary); background: var(--primary-light); color: var(--text-link); }
+        .ref-drop.dragover { border-color: var(--primary); background: rgba(14,165,233,0.06); color: var(--text-link); }
+        .ref-drop i { color: var(--primary); }
+
+        /* === 0. 店舗・キャスト（サジェスト入力） === */
+        .card-title .title-note { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+        .suggest-input-wrap { position: relative; display: flex; align-items: center; }
+        .suggest-input-wrap input[list], .suggest-input-wrap input.combo { width: 100%; padding: 10px 34px 10px 14px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: #ffffff; color: var(--text-main); outline: none; font-size: 0.85rem; font-family: inherit; transition: all 0.2s; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); }
+        .suggest-input-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08); }
+        .suggest-input-wrap input[readonly] { background: var(--bg-input); color: var(--text-muted); cursor: not-allowed; }
+        .suggest-input-wrap input[list]::-webkit-calendar-picker-indicator { opacity: 0; position: absolute; right: 0; width: 32px; height: 100%; cursor: pointer; }
+        .suggest-input-wrap .suggest-caret { position: absolute; right: 12px; color: var(--text-muted); font-size: 0.7rem; pointer-events: none; transition: color 0.2s; }
+        .suggest-input-wrap:focus-within .suggest-caret { color: var(--primary); }
+        .store-lock-note { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
+
+        .cast-register-link { font-size: 0.72rem; color: var(--text-link); font-weight: 600; cursor: pointer; background: none; border: none; padding: 0; display: inline-flex; align-items: center; gap: 4px; font-family: inherit; }
+        .cast-register-link:hover { text-decoration: underline; }
+        .cast-register-box { grid-column: span 2; background: var(--bg-main); border: 1px solid rgba(14,165,233,0.2); border-radius: var(--radius-md); padding: 14px; display: none; flex-direction: column; gap: 10px; animation: fadeIn 0.2s ease; }
+        .cast-register-box.show { display: flex; }
+        .cast-register-box .crb-title { font-size: 0.78rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px; }
+        .cast-register-fields { display: grid; grid-template-columns: 1fr 140px; gap: 10px; }
+        .cast-register-box input, .cast-register-box select { padding: 9px 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); font-size: 0.82rem; outline: none; font-family: inherit; }
+        .cast-register-box input:focus { border-color: var(--primary); }
+        .crb-actions { display: flex; gap: 8px; }
+        .crb-btn { padding: 9px 16px; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700; cursor: pointer; border: none; font-family: inherit; }
+        .crb-btn.primary { background: var(--primary); color: #fff; }
+        .crb-btn.primary:hover { background: var(--primary-hover); }
+        .crb-btn.ghost { background: #fff; color: var(--text-muted); border: 1px solid var(--border-glass); }
+        .crb-btn.ghost:hover { background: var(--bg-input); }
+        .crb-note { font-size: 0.68rem; color: var(--text-muted); }
+
+        .naming-preview { grid-column: span 2; background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.75rem; color: var(--text-muted); font-weight: 500; display: flex; align-items: center; gap: 8px; }
+        .naming-preview code { font-family: 'Inter', monospace; color: var(--text-link); font-weight: 700; background: rgba(14, 165, 233, 0.06); padding: 2px 6px; border-radius: 4px; }
+
+        /* メイク6枚同時出力の告知 */
+        .make-notice { grid-column: span 2; background: linear-gradient(135deg, rgba(14, 165, 233, 0.06), rgba(99, 102, 241, 0.06)); border: 1px solid rgba(14, 165, 233, 0.18); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.78rem; color: var(--text-main); font-weight: 500; line-height: 1.6; }
+        .make-notice > i { color: var(--primary); font-size: 0.95rem; margin-top: 2px; flex-shrink: 0; }
+        .make-notice strong { font-weight: 700; }
+        .make-strength-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .make-strength-chip { background: #ffffff; border: 1px solid var(--border-glass); border-radius: 999px; padding: 3px 10px; font-size: 0.7rem; font-weight: 700; color: var(--text-link); box-shadow: var(--shadow-sm); }
+
+        /* === F-15 マスク描画 UI === */
+        .mask-tool { grid-column: span 2; display: flex; flex-direction: column; gap: 12px; }
+        .mask-empty { border: 2px dashed #cbd5e1; border-radius: var(--radius-md); padding: 28px; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: var(--bg-main); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .mask-empty i { font-size: 1.6rem; color: var(--type-c); }
+        .mask-workspace { display: none; flex-direction: column; gap: 12px; }
+        .mask-workspace.show { display: flex; }
+        .mask-canvas-wrap { position: relative; width: 100%; max-width: 320px; margin: 0 auto; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-glass); background: #0f172a; box-shadow: var(--shadow-sm); touch-action: none; }
+        .mask-canvas-wrap img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+        #mask-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+        .mask-hint { position: absolute; top: 8px; left: 8px; background: rgba(15,23,42,0.7); color: #fff; font-size: 0.66rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; pointer-events: none; display: flex; align-items: center; gap: 5px; }
+        .mask-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px 12px; }
+        .mask-brush-control { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; flex: 1; min-width: 160px; }
+        .mask-brush-control input[type="range"] { flex: 1; accent-color: var(--type-c); }
+        .mask-brush-size { font-variant-numeric: tabular-nums; color: var(--text-main); min-width: 34px; text-align: right; }
+        .mask-btn { background: #ffffff; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 7px 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s; font-family: inherit; }
+        .mask-btn:hover { border-color: var(--type-c); color: #b45309; background: rgba(245,158,11,0.06); }
+        .mask-coverage { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .mask-coverage .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--type-c); }
+
+        /* === 右カラム === */
+        .right-column-container { display: flex; flex-direction: column; min-height: 100%; width: 100%; justify-content: flex-start; position: relative; gap: 16px; }
+        .action-area { display: flex; flex-direction: column; gap: 14px; flex-shrink: 0; }
+
+        .generate-btn-wrapper { position: relative; width: 100%; }
+        .generate-btn { width: 100%; background: var(--primary-gradient); color: white; border: none; padding: 16px; border-radius: var(--radius-md); font-size: 1.05rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25); transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .generate-btn:hover { opacity: 0.95; box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35); }
+        .generate-btn:disabled { background: #cbd5e1; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+
+        /* F-10 生成回数カウンタ（常時表示・ハードリミットなし） */
+        .usage-counter { background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+        .usage-counter-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .usage-stat { display: flex; align-items: baseline; gap: 6px; font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+        .usage-stat strong { font-size: 0.95rem; color: var(--text-main); font-weight: 700; font-variant-numeric: tabular-nums; }
+        .usage-stat strong.cost { color: var(--text-link); }
+        .rate-alert { display: none; align-items: center; gap: 8px; font-size: 0.74rem; font-weight: 600; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 8px 10px; }
+        .rate-alert.show { display: flex; }
+        .rate-alert.cost { color: #be123c; background: #fff1f2; border-color: #fecdd3; }
+
+        /* ローディング演出 */
+        .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); animation: fadeIn 0.2s ease; }
+        .spinner { width: 50px; height: 50px; border: 4px solid rgba(14, 165, 233, 0.1); border-left-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .loading-text { font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+        .loading-subtext { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+
+        /* 生成候補ヘッダ＋ジョブ進捗（F-17） */
+        .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 10px; flex-wrap: wrap; }
+        .results-header h4 { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .job-progress { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; font-weight: 700; color: var(--text-link); }
+        .job-progress-bar { width: 80px; height: 5px; background: var(--bg-input); border-radius: 999px; overflow: hidden; }
+        .job-progress-bar > span { display: block; height: 100%; width: 0%; background: var(--primary-gradient); transition: width 0.3s; }
+
+        .results-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; gap: 12px; }
+        .result-item { position: relative; border-radius: var(--radius-md); overflow: hidden; aspect-ratio: 3/4; background: #f1f5f9; border: 1px solid var(--border-glass); transition: transform 0.2s, box-shadow 0.2s; box-shadow: var(--shadow-sm); }
+        .result-item.selected { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25); }
+        .result-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+        .result-actions { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 8px; display: flex; justify-content: space-between; align-items: center; opacity: 0; transition: opacity 0.2s; }
+        .result-item:hover .result-actions { opacity: 1; }
+        .result-badge { font-size: 0.65rem; background: rgba(255,255,255,0.9); color: var(--text-main); padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: var(--shadow-sm); }
+        .action-icon-btn { background: #fff; color: #0f172a; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: transform 0.1s; box-shadow: var(--shadow-sm); }
+        .action-icon-btn:hover { transform: scale(1.1); }
+
+        /* ジョブスロットの状態表示 */
+        .slot-state { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: 0.78rem; font-weight: 600; padding: 8px; text-align: center; }
+        .slot-state .slot-strength { font-size: 0.66rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; }
+        .slot-state .mini-spinner { width: 22px; height: 22px; border: 3px solid rgba(14,165,233,0.15); border-left-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
+        .slot-waiting { color: #94a3b8; }
+        .slot-generating { color: var(--text-link); }
+        .slot-failed { color: #e11d48; }
+        .slot-tag { position: absolute; top: 6px; left: 6px; font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; z-index: 2; letter-spacing: 0.02em; }
+        .slot-tag.waiting { background: rgba(148,163,184,0.9); color: #fff; }
+        .slot-tag.generating { background: rgba(14,165,233,0.92); color: #fff; }
+        .slot-tag.done { background: rgba(16,185,129,0.92); color: #fff; }
+        .slot-tag.failed { background: rgba(244,63,94,0.92); color: #fff; }
+        .retry-btn { background: #fff; border: 1px solid #fecdd3; color: #e11d48; border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
+        .retry-btn:hover { background: #fff1f2; }
+
+        /* モデレーション警告 */
+        .moderation-warning { background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: var(--radius-md); padding: 12px 16px; color: #e11d48; font-size: 0.8rem; font-weight: 600; display: none; align-items: center; gap: 10px; margin-bottom: 12px; box-shadow: var(--shadow-sm); animation: fadeIn 0.2s ease; }
+        .moderation-warning i { font-size: 1rem; flex-shrink: 0; }
+        .moderation-warning-close { margin-left: auto; background: transparent; border: none; color: #f43f5e; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: color 0.15s; }
+        .moderation-warning-close:hover { color: #be123c; }
+
+        /* チャット（個別修正） */
+        .chat-section { display: flex; flex-direction: column; border: 1px solid var(--border-glass); border-radius: var(--radius-lg); background: var(--bg-main); overflow: hidden; margin-top: 4px; height: 250px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); flex-shrink: 0; position: relative; z-index: 10; box-shadow: var(--shadow-sm); }
+        .chat-section.expanded { position: fixed; top: 40px; bottom: 40px; left: 40px; right: 40px; height: calc(100vh - 80px); width: calc(100vw - 80px); background: #ffffff; box-shadow: var(--shadow-lg); border-color: #cbd5e1; z-index: 999; }
+        .chat-header-bar { background: #ffffff; padding: 12px 16px; border-bottom: 1px solid var(--border-glass); font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; justify-content: space-between; }
+        .chat-header-left { display: flex; align-items: center; gap: 8px; }
+        .chat-header-left i { color: var(--primary); }
+        .chat-header-bar .ai-badge { background: var(--primary-light); color: var(--text-link); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: bold; border: 1px solid rgba(14, 165, 233, 0.15); }
+        .expand-toggle-btn { background: #ffffff; border: 1px solid var(--border-glass); border-radius: 6px; padding: 5px 10px; font-size: 0.75rem; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 6px; color: var(--text-muted); transition: all 0.15s; box-shadow: var(--shadow-sm); }
+        .expand-toggle-btn:hover { background: var(--bg-input); color: var(--text-main); }
+        .chat-history { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 0.85rem; background: #ffffff; }
+        .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; position: relative; animation: fadeIn 0.25s ease-out; font-weight: 500; }
+        .msg.assistant { background: var(--bg-main); border: 1px solid var(--border-glass); color: var(--text-main); align-self: flex-start; border-top-left-radius: 2px; }
+        .msg.user { background: var(--primary-gradient); color: white; align-self: flex-end; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.15); border-top-right-radius: 2px; }
+        .msg.system-warn { align-self: center; max-width: 95%; background: #fffbeb; border: 1px solid #fde68a; color: #b45309; font-size: 0.78rem; text-align: center; }
+        .typing-dots { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; }
+        .typing-dots span { width: 6px; height: 6px; background-color: var(--text-muted); border-radius: 50%; animation: blink 1.4s infinite both; }
+        .typing-dots span:nth-child(2) { animation-delay: .2s; }
+        .typing-dots span:nth-child(3) { animation-delay: .4s; }
+        .chat-input-area { padding: 12px; background: #ffffff; border-top: 1px solid var(--border-glass); display: flex; gap: 10px; flex-shrink: 0; }
+        .chat-input-area input { flex: 1; border: 1px solid var(--border-glass); padding: 10px 14px; border-radius: var(--radius-md); outline: none; font-size: 0.85rem; background: var(--bg-main); color: var(--text-main); transition: all 0.2s; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); }
+        .chat-input-area input:focus { background: #ffffff; border-color: var(--primary); }
+        .chat-input-area button { background: var(--primary); color: white; border: none; padding: 0 16px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: background 0.2s; box-shadow: var(--shadow-sm); }
+        .chat-input-area button:hover { background: var(--primary-hover); }
+
+        /* === モーダル === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.3); backdrop-filter: blur(10px); z-index: 10000; display: none; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
+        .modal-card { background: #ffffff; border: 1px solid #cbd5e1; width: 100%; max-width: 760px; border-radius: 24px; box-shadow: var(--shadow-lg); padding: 32px; display: flex; flex-direction: column; gap: 22px; max-height: 88vh; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+        .modal-header h3 { font-size: 1.25rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .modal-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; transition: color 0.15s; }
+        .modal-close-btn:hover { color: var(--text-main); }
+        .settings-tab-content { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; padding-right: 4px; }
+        .settings-section-title { font-size: 0.85rem; color: var(--text-link); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: -6px; display: flex; align-items: center; gap: 8px; }
+        .settings-section-title .sec-badge { font-size: 0.62rem; background: var(--bg-input); color: var(--text-muted); border-radius: 4px; padding: 1px 6px; font-weight: 700; letter-spacing: 0; }
+        .log-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.78rem; }
+        .log-table th { padding: 9px 8px; color: var(--text-muted); border-bottom: 1px solid #f1f5f9; font-weight: 600; white-space: nowrap; }
+        .log-table td { padding: 10px 8px; border-bottom: 1px solid #f8fafc; color: var(--text-main); font-weight: 500; }
+        .settings-grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .provider-table select { width: 100%; padding: 8px 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); font-size: 0.8rem; background: #fff; font-family: inherit; }
+        .policy-list { display: flex; flex-direction: column; gap: 8px; }
+        .policy-item { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-main); font-weight: 500; background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; }
+        .policy-item i.ok { color: #10b981; }
+        .policy-item .pi-tag { margin-left: auto; font-size: 0.66rem; font-weight: 700; color: #059669; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); border-radius: 999px; padding: 2px 9px; }
+        .setting-field { display: flex; flex-direction: column; gap: 6px; }
+        .setting-field label { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; }
+        .setting-field input, .setting-field select { padding: 9px 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); font-size: 0.82rem; outline: none; font-family: inherit; background: #fff; }
+        .setting-note { font-size: 0.7rem; color: var(--text-muted); }
+        .toggle-inline { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--bg-main); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
+    </style>
+</head>
+<body>
+
+    <!-- ログイン画面 -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-card">
+            <div class="logo-area">
+                <div class="logo-icon"><i class="fa-solid fa-wand-sparkles"></i></div>
+                <div class="logo-text">AI Canvas</div>
+            </div>
+            <div class="logo-badge-ver">v2.0 確定版</div>
+            <div class="logo-subtitle">自社専用クローズド AI 画像加工システム（画像編集・inpainting）</div>
+
+            <div class="form-group">
+                <label><i class="fa-solid fa-user-tag"></i> 店舗スタッフID（メールアドレス）</label>
+                <input type="email" id="email-input" value="manager@store.com">
+                <div class="role-hint"><i class="fa-solid fa-circle-info"></i> manager を含むと管理者ロール、それ以外はスタッフロールでログインします</div>
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> パスワード</label>
+                <input type="password" id="password-input" value="••••••••">
+            </div>
+            <button class="sb-btn" onclick="handleAuthSuccess()">システムにセキュアログイン</button>
+            <div class="security-notice"><i class="fa-solid fa-shield-halved"></i> RLS 有効・全 API 呼び出しはサーバーサイドで実行</div>
+        </div>
+    </div>
+
+    <!-- メインアプリケーション -->
+    <div id="app-wrapper" style="display: none;">
+        <div class="main-container">
+
+            <!-- 左カラム -->
+            <div class="column sidebar">
+                <div class="sidebar-top">
+                    <div class="app-title-area">
+                        <span class="app-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                        <span class="app-title-text">AI Canvas</span>
+                        <span class="app-title-ver">v2.0</span>
+                    </div>
+
+                    <button class="new-chat-btn" onclick="createNewSession()">
+                        <i class="fa-solid fa-plus"></i> 新しい画像加工セッション
+                    </button>
+
+                    <!-- F-10 当月生成回数・推定コスト簡易表示 -->
+                    <div class="usage-mini">
+                        <div class="usage-mini-title"><i class="fa-solid fa-gauge-high"></i> 当月の利用状況</div>
+                        <div class="usage-mini-row"><span class="label">当月の生成回数</span><span class="value" id="mini-month-count">128 回</span></div>
+                        <div class="usage-mini-row"><span class="label">当月の推定コスト</span><span class="value cost" id="mini-month-cost">$31.75</span></div>
+                    </div>
+
+                    <div class="history-section" id="history-list">
+                        <div class="history-label">加工セッション履歴</div>
+                        <div class="history-item active" onclick="loadHistory(this, 'THE ESPERANZA_アリス_メイク・背景')">
+                            <div class="h-title"><i class="fa-regular fa-image"></i> THE ESPERANZA_アリス_メイク...</div>
+                            <div class="h-meta">2026/07/22 ・ gpt-image-2 ・ $0.27</div>
+                        </div>
+                        <div class="history-item" onclick="loadHistory(this, 'ESPERANZA ANNEX_マイ_衣装・髪型')">
+                            <div class="h-title"><i class="fa-regular fa-image"></i> ESPERANZA ANNEX_マイ_衣装...</div>
+                            <div class="h-meta">2026/07/21 ・ gemini-3-pro-image ・ $0.25</div>
+                        </div>
+                        <div class="history-item" onclick="loadHistory(this, 'クラブ ピア_サクラ_タトゥー除去')">
+                            <div class="h-title"><i class="fa-regular fa-image"></i> クラブ ピア_サクラ_タトゥー除去...</div>
+                            <div class="h-meta">2026/07/20 ・ FLUX.1 Fill ・ $0.09</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-bottom">
+                    <button class="nav-button" id="admin-settings-btn" onclick="openSettings()">
+                        <i class="fa-solid fa-sliders"></i> ⚙️ 管理者向けシステム設定
+                    </button>
+                    <button class="nav-button" onclick="alert('利用マニュアル・マスク描画UIのチュートリアルを開きます。')">
+                        <i class="fa-solid fa-book-open"></i> ヘルプ＆ドキュメント
+                    </button>
+
+                    <div class="user-profile">
+                        <span id="user-display" class="user-email">manager@store.com</span>
+                        <div class="user-role-container">
+                            <span class="user-role-badge" id="user-role-badge">管理者</span>
+                            <span class="logout-text" onclick="handleLogout()"><i class="fa-solid fa-arrow-right-from-bracket"></i> ログアウト</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中央カラム -->
+            <div class="column" id="center-operation-column">
+                <div class="center-header">
+                    <div class="title-input-wrapper">
+                        <input type="text" id="session-title" class="editable-title" value="新規画像加工セッション" title="クリックしてタイトルを編集できます" placeholder="セッションタイトルを入力">
+                    </div>
+                </div>
+
+                <!-- STEP 0：店舗・キャスト選択 -->
+                <div class="step-heading"><span class="step-num">STEP 0</span> 店舗・キャスト選択</div>
+                <div class="card" id="asset-info-card">
+                    <div class="card-title">
+                        <span class="cat-letter" style="background:rgba(15,23,42,0.06); color:var(--text-main); border-color:#e2e8f0;">0</span> 画像管理情報の指定
+                        <span class="required-tag">必須</span>
+                        <span class="title-note">ファイル名・保存フォルダに使用</span>
+                    </div>
+                    <div class="card-grid-fields">
+                        <div class="input-group">
+                            <label><i class="fa-solid fa-store" style="margin-right:6px; color: var(--text-muted);"></i> 店舗選択</label>
+                            <div class="suggest-input-wrap">
+                                <input type="text" id="store-input" list="store-options" placeholder="店舗名を入力または選択" autocomplete="off" oninput="autoGenerateTitle()" onchange="autoGenerateTitle()">
+                                <i class="fa-solid fa-chevron-down suggest-caret"></i>
+                            </div>
+                            <datalist id="store-options">
+                                <option value="THE ESPERANZA"></option>
+                                <option value="ESPERANZA ANNEX"></option>
+                                <option value="クラブ ピア"></option>
+                                <option value="いたずらBUNNYちゃん"></option>
+                            </datalist>
+                            <div class="store-lock-note" id="store-lock-note" style="display:none;"><i class="fa-solid fa-circle-info"></i> スタッフロールのため自店舗を初期選択しています（UI上の初期値であり、アクセス制限ではありません）</div>
+                        </div>
+                        <div class="input-group">
+                            <label><i class="fa-solid fa-user" style="margin-right:6px; color: var(--text-muted);"></i> キャスト名</label>
+                            <div class="suggest-input-wrap">
+                                <input type="text" id="cast-input" list="cast-options" placeholder="キャスト名を入力または選択" autocomplete="off" oninput="autoGenerateTitle()" onchange="autoGenerateTitle()">
+                                <i class="fa-solid fa-chevron-down suggest-caret"></i>
+                            </div>
+                            <datalist id="cast-options">
+                                <option value="アリス"></option>
+                                <option value="マイ"></option>
+                                <option value="サクラ"></option>
+                                <option value="レナ"></option>
+                                <option value="ハルカ"></option>
+                            </datalist>
+                            <button class="cast-register-link" onclick="toggleCastRegister(true)"><i class="fa-solid fa-user-plus"></i> 新規キャストを登録（F-14）</button>
+                        </div>
+
+                        <!-- F-14 キャスト新規登録 -->
+                        <div class="cast-register-box" id="cast-register-box">
+                            <div class="crb-title"><i class="fa-solid fa-user-plus" style="color:var(--primary);"></i> キャスト新規登録</div>
+                            <div class="cast-register-fields">
+                                <input type="text" id="new-cast-name" placeholder="キャスト名（源氏名）">
+                                <input type="month" id="new-cast-ym" title="入店年月">
+                            </div>
+                            <div class="crb-actions">
+                                <button class="crb-btn primary" onclick="registerNewCast()">登録して選択</button>
+                                <button class="crb-btn ghost" onclick="toggleCastRegister(false)">キャンセル</button>
+                            </div>
+                            <div class="crb-note"><i class="fa-solid fa-database"></i> source='manual' としてキャストマスタへ登録し、日次バッチ同期分と区別します（4.4）。表示名は「キャスト名_入店年月」形式で管理されます。</div>
+                        </div>
+
+                        <div class="naming-preview">
+                            <i class="fa-solid fa-tag" style="color: var(--primary);"></i>
+                            自動ネーミング： <code id="naming-preview-text">店舗未選択_キャスト未入力_加工なし</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 1：元画像 -->
+                <div class="step-heading"><span class="step-num">STEP 1</span> 元画像のアップロード（編集対象の原本）</div>
+                <div class="upload-section" id="drop-zone">
+                    <div class="upload-box" onclick="document.getElementById('src-file').click()" id="upload-placeholder">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">写真をドラッグ＆ドロップ、またはクリックして選択</p>
+                        <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">※本人性（顔立ち・表情）を保持したまま指定レイヤーのみを画像編集します</p>
+                    </div>
+                    <input type="file" id="src-file" accept="image/*" style="display: none;" onchange="handleSrcImage(this)">
+
+                    <div class="preview-container" id="preview-container" style="display: none;">
+                        <div class="preview-wrap" id="src-preview-wrap">
+                            <span class="status-badge"><i class="fa-solid fa-user-check"></i> 人物検出完了</span>
+                            <img id="src-preview" src="" alt="元画像プレビュー">
+                        </div>
+                        <div class="upload-meta-text">
+                            <strong>アイデンティティロック有効</strong><br>
+                            キャストの本人性をクローズド編集エンジンが固定しました。以下の加工カテゴリ指定に従い、原本を入力とした画像編集を行います。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2：加工カテゴリ設定 -->
+                <div class="step-heading"><span class="step-num">STEP 2</span> 加工カテゴリ設定（メイク以外は有効／無効を選択）</div>
+
+                <!-- メイク（必須・種別A） -->
+                <div class="card enabled" data-category="メイク" data-type="A">
+                    <div class="card-title">
+                        <span class="cat-letter">メ</span> メイク設定
+                        <span class="type-badge type-a">種別A 指示ベース編集</span>
+                        <span class="required-tag">必須</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="make-notice">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                <div>
+                                    加工強度の選択は不要です。AIが<strong>「弱」「中」「強」の各強度で2枚ずつ、合計6枚のドラフト候補（1K・低解像度）を同時に出力</strong>します。生成後、右カラムの候補から最適な1枚を選び、確定時に高解像度（2K以上）で再生成します。
+                                    <div class="make-strength-chips">
+                                        <span class="make-strength-chip">弱 × 2枚</span>
+                                        <span class="make-strength-chip">中 × 2枚</span>
+                                        <span class="make-strength-chip">強 × 2枚</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group full-width">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" id="make-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="ナチュラル美肌">ナチュラル美肌</option>
+                                    <option value="華やかパーティーメイク">華やかパーティーメイク</option>
+                                    <option value="トレンド韓国風メイク">トレンド韓国風メイク</option>
+                                </select>
+                            </div>
+                            <div class="input-group full-width">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: リップの赤みを少し強め、艶感を出す">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 背景（種別B） -->
+                <div class="card disabled" data-category="背景" data-type="B">
+                    <div class="card-title">
+                        <span class="cat-letter">背</span> 背景設定
+                        <span class="type-badge type-b">種別B 参照画像ベース</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="高級ラウンジ">高級ラウンジ</option>
+                                    <option value="明るいカフェ風">明るいカフェ風</option>
+                                    <option value="夜のネオン街">夜のネオン街</option>
+                                    <option value="ゴシック調スタジオ">ゴシック調スタジオ</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: 大理石の柱と柔らかな間接照明">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 衣装（種別B） -->
+                <div class="card disabled" data-category="衣装" data-type="B">
+                    <div class="card-title">
+                        <span class="cat-letter">衣</span> 衣装設定
+                        <span class="type-badge type-b">種別B 参照画像ベース</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="フォーマルスーツ">フォーマルスーツ</option>
+                                    <option value="カジュアルシャツ">カジュアルシャツ</option>
+                                    <option value="パーティードレス">パーティードレス</option>
+                                    <option value="和装（着物）">和装（着物）</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: 黒のシルクVネックロングドレス">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 髪型（種別B） -->
+                <div class="card disabled" data-category="髪型" data-type="B">
+                    <div class="card-title">
+                        <span class="cat-letter">髪</span> 髪型設定
+                        <span class="type-badge type-b">種別B 参照画像ベース</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="ゆるふわ巻き髪">ゆるふわ巻き髪</option>
+                                    <option value="ストレートロング">ストレートロング</option>
+                                    <option value="アップスタイル">アップスタイル</option>
+                                    <option value="ハーフアップ">ハーフアップ</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: 前髪シースルーできれい目のまとめ髪">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ポーズ（種別B） -->
+                <div class="card disabled" data-category="ポーズ" data-type="B">
+                    <div class="card-title">
+                        <span class="cat-letter">ポ</span> ポーズ指定
+                        <span class="type-badge type-b">種別B 参照画像ベース</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="正面立ち姿">正面立ち姿</option>
+                                    <option value="斜め振り返り">斜め振り返り</option>
+                                    <option value="ソファーに腰掛け">ソファーに腰掛け</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: 手をあごに少し添えるポーズ">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 雰囲気（種別A） -->
+                <div class="card disabled" data-category="雰囲気" data-type="A">
+                    <div class="card-title">
+                        <span class="cat-letter">雰</span> 全体の雰囲気・ライティング
+                        <span class="type-badge type-a">種別A 指示ベース編集</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="input-group full-width">
+                                <label>参考画像をアップロード<span class="recommend-tag">推奨</span></label>
+                                <div class="ref-drop" data-ref-drop><i class="fa-solid fa-image"></i> ドラッグ＆ドロップ / クリックで参考画像を添付</div>
+                            </div>
+                            <div class="input-group">
+                                <label>テンプレートから選択</label>
+                                <select class="tpl-select" onchange="autoGenerateTitle()">
+                                    <option value="">選択してください（未選択）</option>
+                                    <option value="シネマティック（高級感）">シネマティック（高級感）</option>
+                                    <option value="ふんわり（可愛く）">ふんわり（可愛く）</option>
+                                    <option value="クール＆スタイリッシュ">クール＆スタイリッシュ</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>自由テキスト指示</label>
+                                <input type="text" class="free-text" placeholder="例: 左側からの暖色系サイドライティング">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タトゥー除去（種別C・マスク描画UI） -->
+                <div class="card disabled" data-category="タトゥー除去" data-type="C" id="removal-card">
+                    <div class="card-title">
+                        <span class="cat-letter" style="background:rgba(245,158,11,0.1); color:var(--type-c); border-color:rgba(245,158,11,0.22);">除</span> タトゥー・不要物除去
+                        <span class="type-badge type-c">種別C マスク局所修復</span>
+                        <div class="card-enable">
+                            <span class="enable-text">無効</span>
+                            <label class="switch"><input type="checkbox" onchange="toggleCard(this)"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-grid-fields">
+                            <div class="make-notice" style="background: linear-gradient(135deg, rgba(245,158,11,0.06), rgba(244,63,94,0.05)); border-color: rgba(245,158,11,0.2);">
+                                <i class="fa-solid fa-eraser" style="color: var(--type-c);"></i>
+                                <div>他カテゴリと処理方式が異なります。参考画像は使用せず、<strong>元画像上でブラシを塗って除去範囲（マスク）を指定</strong>してください。マスク領域のみをインペインティング修復し、<strong>マスク外は一切変更しません</strong>。専用モデル・別API経路で実行されます（F-15）。</div>
+                            </div>
+
+                            <!-- マスク描画ツール -->
+                            <div class="mask-tool">
+                                <div class="mask-empty" id="mask-empty">
+                                    <i class="fa-solid fa-image"></i>
+                                    先に「STEP 1」で元画像をアップロードしてください。<br>アップロード後、ここに除去範囲を塗るマスク描画キャンバスが表示されます。
+                                </div>
+                                <div class="mask-workspace" id="mask-workspace">
+                                    <div class="mask-canvas-wrap" id="mask-canvas-wrap">
+                                        <img id="mask-bg-img" src="" alt="マスク対象">
+                                        <canvas id="mask-canvas"></canvas>
+                                        <span class="mask-hint"><i class="fa-solid fa-paintbrush"></i> ドラッグして除去範囲を塗る</span>
+                                    </div>
+                                    <div class="mask-controls">
+                                        <div class="mask-brush-control">
+                                            <i class="fa-solid fa-paintbrush" style="color:var(--type-c);"></i> ブラシサイズ
+                                            <input type="range" id="brush-size" min="6" max="60" value="26" oninput="updateBrushSize(this.value)">
+                                            <span class="mask-brush-size" id="brush-size-val">26px</span>
+                                        </div>
+                                        <button class="mask-btn" onclick="undoMask()"><i class="fa-solid fa-rotate-left"></i> 取り消し</button>
+                                        <button class="mask-btn" onclick="clearMask()"><i class="fa-solid fa-trash-can"></i> 全消去</button>
+                                    </div>
+                                    <div class="mask-coverage" id="mask-coverage"><span class="dot"></span> マスク未指定 — 除去したい箇所をブラシで塗ってください</div>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label>除去対象の種類</label>
+                                <select class="tpl-select" id="removal-type">
+                                    <option value="タトゥー・刺青">タトゥー・刺青</option>
+                                    <option value="傷跡・アザ">傷跡・アザ</option>
+                                    <option value="ピアス・アクセサリー">ピアス・アクセサリー</option>
+                                    <option value="背景の写り込み物">背景の写り込み物</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>補足メモ<span class="recommend-tag">任意</span></label>
+                                <input type="text" class="free-text" id="removal-note" placeholder="例: 右肩の蝶のタトゥー、デコルテのワンポイント">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右カラム -->
+            <div class="column" id="right-result-column">
+                <div class="right-column-container">
+
+                    <div class="action-area">
+                        <div class="step-heading" style="margin-bottom:2px;"><span class="step-num">STEP 3</span> 生成実行</div>
+                        <div class="generate-btn-wrapper">
+                            <button class="generate-btn" id="main-generate-btn" onclick="executeGeneration()">
+                                <i class="fa-solid fa-bolt"></i> ドラフト6枚を生成（非同期ジョブ）
+                            </button>
+                        </div>
+
+                        <!-- F-10 生成回数カウンタ（常時表示・ハードリミットなし） -->
+                        <div class="usage-counter">
+                            <div class="usage-counter-row">
+                                <div class="usage-stat">セッション <strong id="session-count">0</strong> 回</div>
+                                <div class="usage-stat">当月 <strong id="month-count">128</strong> 回</div>
+                                <div class="usage-stat">本日推定 <strong class="cost" id="today-cost">$2.40</strong></div>
+                            </div>
+                            <div class="rate-alert" id="rate-alert"><i class="fa-solid fa-triangle-exclamation"></i> <span id="rate-alert-text">短時間に多数の生成が行われています。管理者へ通知しました（Slack）。</span></div>
+                        </div>
+
+                        <!-- ローディング（初回ジョブ登録の一瞬のみ） -->
+                        <div class="loading-overlay" id="gen-loading">
+                            <div class="spinner"></div>
+                            <div class="loading-text" id="loading-title">生成ジョブを登録中...</div>
+                            <div class="loading-subtext">抽象化レイヤー経由でプロバイダへ投入 / Realtime購読開始</div>
+                        </div>
+
+                        <div style="margin-top: 4px; position: relative;">
+                            <div class="results-header">
+                                <h4><i class="fa-regular fa-images"></i> 生成候補（6枚 / 弱・中・強 各2枚）</h4>
+                                <div class="job-progress" id="job-progress" style="display:none;">
+                                    <span id="job-progress-text">0/6 完了</span>
+                                    <div class="job-progress-bar"><span id="job-progress-fill"></span></div>
+                                </div>
+                            </div>
+
+                            <div class="moderation-warning" id="moderation-warning-box">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span id="moderation-warning-text">⚠️【ポーズ指定】の内容または参考画像が規約に抵触している可能性があります</span>
+                                <button class="moderation-warning-close" onclick="closeModerationWarning()"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+
+                            <div class="results-grid" id="results-grid"></div>
+
+                            <button onclick="testModerationWarning()" style="margin-top: 10px; width: 100%; padding: 8px; font-size: 0.75rem; border: 1px dashed #f43f5e; background: #fff5f5; color: #e11d48; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <i class="fa-solid fa-bug"></i> [デバッグ用] 規約抵触（F-04）警告テスト
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 個別やり直しチャット -->
+                    <div class="chat-section" id="chat-section-box">
+                        <div class="chat-header-bar">
+                            <div class="chat-header-left">
+                                <i class="fa-solid fa-comments"></i>
+                                <span>個別修正アシスタント</span>
+                                <span class="ai-badge">逐次編集</span>
+                            </div>
+                            <button class="expand-toggle-btn" id="expand-btn" onclick="toggleChatExpand()">
+                                <i class="fa-solid fa-expand" id="expand-icon-fa"></i> <span id="expand-text">全画面表示</span>
+                            </button>
+                        </div>
+                        <div class="chat-history" id="chat-history">
+                            <div class="msg assistant">キャストの本人性を固定しています。6枚のドラフト候補から1枚を選び、「衣装を明るい赤のシルクに変更して」「背景のライトをもう少し落として」等の自然言語指示でピンポイント修正が可能です（直前に選択した画像を入力とした逐次編集）。反復による画質劣化を避けるため、5回を超える連続編集では原本からの再編集をおすすめします。</div>
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="選択中の候補への部分修正指示を入力..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                            <button onclick="sendChatMessage()">送信</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 管理者システム設定モーダル -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-screwdriver-wrench" style="color: var(--primary);"></i> AI Canvas 管理者システム設定</h3>
+                <button class="modal-close-btn" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="settings-tab-content">
+                <!-- F-16 プロバイダ抽象化レイヤー -->
+                <div class="settings-section-title">画像生成プロバイダ抽象化レイヤー <span class="sec-badge">F-16</span></div>
+                <div class="setting-note" style="margin-top:-4px;"><i class="fa-solid fa-circle-info"></i> モデル名は設定値で差し替え可能。使用プロバイダ／モデル／モデルバージョン／推定単価は全ジョブに記録します（本文にモデル名は固定しません）。</div>
+                <table class="log-table provider-table">
+                    <thead>
+                        <tr><th>用途</th><th>プロバイダ / モデル</th><th>代替（フォールバック）</th><th>単価目安</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>種別A 指示ベース編集</td>
+                            <td><select><option>gpt-image-2（1K）</option><option>gemini-3-pro-image</option></select></td>
+                            <td>gemini-3-pro-image</td>
+                            <td>$0.03/枚</td>
+                        </tr>
+                        <tr>
+                            <td>種別B 参照画像ベース編集</td>
+                            <td><select><option>gpt-image-2（1K・参照16枚）</option><option>gemini-3-pro-image</option><option>gemini-3.1-flash-image</option></select></td>
+                            <td>gemini-3-pro-image</td>
+                            <td>$0.03/枚</td>
+                        </tr>
+                        <tr>
+                            <td>種別C マスク局所修復</td>
+                            <td><select><option>FLUX.1 Fill</option><option>FLUX.2 Edit</option><option>自社ホスティング（オープンウェイト）</option></select></td>
+                            <td>自社ホスティング</td>
+                            <td>数セント/枚</td>
+                        </tr>
+                        <tr>
+                            <td>確定画像 高品質化（STEP5）</td>
+                            <td><select><option>gpt-image-2（2K）</option></select></td>
+                            <td>—</td>
+                            <td>$0.05/枚</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- F-10 監視設定 -->
+                <div class="settings-section-title">生成回数の可視化・レート監視 <span class="sec-badge">F-10</span></div>
+                <div class="settings-grid-row">
+                    <div class="setting-field">
+                        <label>レート警告閾値（1時間あたりの生成回数）</label>
+                        <input type="number" id="setting-rate-threshold" value="8">
+                    </div>
+                    <div class="setting-field">
+                        <label>日次コストアラート閾値（USD）</label>
+                        <input type="number" id="setting-cost-threshold" value="5" step="0.5">
+                    </div>
+                </div>
+                <div class="toggle-inline">
+                    <span><i class="fa-brands fa-slack" style="color:var(--primary);"></i> 閾値超過時に管理者へ Slack Webhook 通知</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="setting-note"><i class="fa-solid fa-circle-info"></i> v2.0 では可視化とアラートまでを実装対象とし、強制停止（ハードリミット）は当面実装しません（スコープ外）。</div>
+
+                <!-- 4.5 セキュリティ -->
+                <div class="settings-section-title">セキュリティ・データ保護ポリシー <span class="sec-badge">4.5</span></div>
+                <div class="policy-list">
+                    <div class="policy-item"><i class="fa-solid fa-user-shield ok"></i> 全テーブルで RLS 有効化（認証済みユーザーのみ読み書き許可、anon 拒否）<span class="pi-tag">有効</span></div>
+                    <div class="policy-item"><i class="fa-solid fa-shield-halved ok"></i> 事前モデレーションスキャン（編集処理前・抵触検出時は中断）<span class="pi-tag">有効</span></div>
+                    <div class="policy-item"><i class="fa-solid fa-key ok"></i> 全生成API・Vision・モデレーション呼び出しはサーバーサイド実行（APIキー非露出）<span class="pi-tag">有効</span></div>
+                    <div class="policy-item"><i class="fa-solid fa-link ok"></i> Supabase Storage 非公開バケット＋有効期限付き署名付きURL<span class="pi-tag">有効</span></div>
+                    <div class="policy-item"><i class="fa-brands fa-google-drive ok"></i> Google Drive 共有ドライブ保存（サービスアカウント認証情報はサーバー管理・フォルダID解決）<span class="pi-tag">適用</span></div>
+                    <div class="policy-item"><i class="fa-solid fa-broom ok"></i> Supabase Storage 一時データの自動クリーンアップ（3日〜1週間 / F-13）<span class="pi-tag">有効</span></div>
+                </div>
+
+                <!-- ログ -->
+                <div class="settings-section-title">利用ログ・生成ジョブモニタリング <span class="sec-badge">F-07 / F-16</span></div>
+                <table class="log-table">
+                    <thead>
+                        <tr><th>日付</th><th>スタッフID</th><th>セッション名</th><th>プロバイダ/モデル</th><th>FB</th><th>コスト</th><th>状態</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>2026/07/22</td><td>manager@store.com</td><td>THE ESPERANZA_アリス_メイク</td><td>gpt-image-2 v2</td><td>—</td><td>$0.27</td><td><span style="color:#10b981; font-weight:600;">成功</span></td></tr>
+                        <tr><td>2026/07/21</td><td>staff_01@store.com</td><td>ESPERANZA ANNEX_マイ_衣装</td><td>gemini-3-pro-image</td><td><span style="color:#d97706;font-weight:600;">有</span></td><td>$0.25</td><td><span style="color:#10b981; font-weight:600;">成功(FB)</span></td></tr>
+                        <tr><td>2026/07/20</td><td>staff_02@store.com</td><td>クラブ ピア_サクラ_タトゥー除去</td><td>FLUX.1 Fill</td><td>—</td><td>$0.09</td><td><span style="color:#ef4444; font-weight:600;">policy拒否</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===== 状態変数 ===== */
+        let sessionCount = 0;
+        let monthCount = 128;
+        let todayCost = 2.40;
+        let monthCost = 31.75;
+        let rateThreshold = 8;
+        let costThreshold = 5;
+        let currentRole = 'admin';
+        let chatEditCount = 0;   // F-05 逐次編集回数
+        let jobRunning = false;
+
+        /* 6バリエーション定義：メイク強度「弱・中・強」× 各2パターン。
+           filter は強度が上がるほど色彩・コントラストが濃くなる疑似メイクエフェクト。 */
+        const MAKE_VARIATIONS = [
+            { label: '弱 - パターンA', strength: '弱', filter: 'hue-rotate(4deg) saturate(1.05) contrast(1.01) brightness(1.06)' },
+            { label: '弱 - パターンB', strength: '弱', filter: 'hue-rotate(-4deg) saturate(1.08) contrast(1.03) brightness(1.04)' },
+            { label: '中 - パターンA', strength: '中', filter: 'hue-rotate(9deg) saturate(1.22) contrast(1.07) brightness(1.03)' },
+            { label: '中 - パターンB', strength: '中', filter: 'hue-rotate(-9deg) saturate(1.28) contrast(1.09) brightness(1.02)' },
+            { label: '強 - パターンA', strength: '強', filter: 'hue-rotate(15deg) saturate(1.45) contrast(1.14) brightness(1.0)' },
+            { label: '強 - パターンB', strength: '強', filter: 'hue-rotate(-15deg) saturate(1.55) contrast(1.18) brightness(0.98)' }
+        ];
+
+        /* ===== ログイン ===== */
+        function handleAuthSuccess() {
+            const email = document.getElementById('email-input').value;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-wrapper').style.display = 'flex';
+            document.getElementById('user-display').innerText = email;
+
+            const badge = document.getElementById('user-role-badge');
+            const adminBtn = document.getElementById('admin-settings-btn');
+            const storeInput = document.getElementById('store-input');
+            const storeNote = document.getElementById('store-lock-note');
+
+            if (email.includes('manager')) {
+                currentRole = 'admin';
+                badge.innerText = "管理者";
+                badge.style.color = "#0284c7";
+                badge.style.background = "rgba(14, 165, 233, 0.08)";
+                adminBtn.style.display = "flex";
+                // 管理者：全店舗から選択（初期値なし）
+                storeInput.value = "";
+                storeInput.removeAttribute('readonly');
+                storeNote.style.display = "none";
+            } else {
+                currentRole = 'staff';
+                badge.innerText = "店舗スタッフ";
+                badge.style.color = "#d97706";
+                badge.style.background = "rgba(251, 191, 36, 0.08)";
+                adminBtn.style.display = "none";
+                // スタッフ：自店舗を初期選択（UI初期値であり、アクセス制限ではない）
+                storeInput.value = "THE ESPERANZA";
+                storeNote.style.display = "flex";
+            }
+            autoGenerateTitle();
+        }
+
+        function handleLogout() {
+            document.getElementById('app-wrapper').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            sessionCount = 0;
+            updateUsageUI();
+        }
+
+        /* ===== 元画像 D&D ===== */
+        const dropZone = document.getElementById('drop-zone');
+        ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); }, false));
+        ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); }, false));
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) { document.getElementById('src-file').files = files; handleSrcImage({ files }); }
+        });
+
+        function handleSrcImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('upload-placeholder').style.display = 'none';
+                document.getElementById('preview-container').style.display = 'flex';
+                const wrap = document.getElementById('src-preview-wrap');
+                document.getElementById('src-preview').src = e.target.result;
+                wrap.style.display = 'block';
+                setupMaskImage(e.target.result);   // F-15 マスク描画UIへ反映
+                autoGenerateTitle();
+            }
+            reader.readAsDataURL(file);
+        }
+
+        /* ===== カテゴリ有効/無効トグル ===== */
+        function toggleCard(checkbox) {
+            const card = checkbox.closest('.card');
+            const enabled = checkbox.checked;
+            card.classList.toggle('enabled', enabled);
+            card.classList.toggle('disabled', !enabled);
+            card.querySelector('.enable-text').innerText = enabled ? '有効' : '無効';
+            autoGenerateTitle();
+        }
+
+        /* ===== F-14 キャスト新規登録 ===== */
+        function toggleCastRegister(show) {
+            document.getElementById('cast-register-box').classList.toggle('show', show);
+            if (show) document.getElementById('new-cast-name').focus();
+        }
+        function registerNewCast() {
+            const name = document.getElementById('new-cast-name').value.trim();
+            const ym = document.getElementById('new-cast-ym').value; // YYYY-MM
+            if (!name) { alert('キャスト名を入力してください。'); return; }
+            const ymLabel = ym ? ym.replace('-', '') : '';
+            const displayName = ymLabel ? `${name}_${ymLabel}` : name;
+
+            const opt = document.createElement('option');
+            opt.value = displayName;
+            document.getElementById('cast-options').appendChild(opt);
+            document.getElementById('cast-input').value = displayName;
+
+            document.getElementById('new-cast-name').value = '';
+            document.getElementById('new-cast-ym').value = '';
+            toggleCastRegister(false);
+            autoGenerateTitle();
+            alert(`キャスト「${displayName}」を source='manual' として登録し、選択しました。\n（既存システムからのバッチ同期分とは区別され、同名重複時は管理画面のマージ承認キューへ積まれます）`);
+        }
+
+        /* ===== セッション名自動生成（F-09） ===== */
+        function autoGenerateTitle() {
+            const store = (document.getElementById('store-input').value || '').trim() || "店舗未選択";
+            const cast = (document.getElementById('cast-input').value || '').trim() || "キャスト未入力";
+
+            // 有効なカテゴリ名を集める（メイクは常時、他は有効化かつテンプレ選択時）
+            const parts = [];
+            const make = document.getElementById('make-select').value;
+            parts.push(make ? `メイク(${make.length > 6 ? make.substring(0,6) : make})` : 'メイク');
+            document.querySelectorAll('.card[data-category]:not([data-category="メイク"])').forEach(card => {
+                if (!card.classList.contains('enabled')) return;
+                parts.push(card.getAttribute('data-category'));
+            });
+            const categoryName = parts.join('・');
+
+            const autoTitle = `${store}_${cast}_${categoryName}`;
+            document.getElementById('session-title').value = autoTitle;
+            document.getElementById('naming-preview-text').innerText = autoTitle;
+
+            const activeHistory = document.querySelector('.history-item.active .h-title');
+            if (activeHistory) {
+                const short = autoTitle.length > 16 ? autoTitle.substring(0, 16) + "..." : autoTitle;
+                activeHistory.innerHTML = `<i class="fa-regular fa-image"></i> ${short}`;
+            }
+        }
+
+        /* ===== F-15 マスク描画UI ===== */
+        let maskCanvas, maskCtx, maskStrokes = [], currentStroke = null, drawing = false, brushSize = 26;
+
+        function setupMaskImage(dataUrl) {
+            document.getElementById('mask-empty').style.display = 'none';
+            document.getElementById('mask-workspace').classList.add('show');
+            const bg = document.getElementById('mask-bg-img');
+            bg.onload = initMaskCanvas;
+            bg.src = dataUrl;
+        }
+
+        function initMaskCanvas() {
+            const wrap = document.getElementById('mask-canvas-wrap');
+            maskCanvas = document.getElementById('mask-canvas');
+            // 表示サイズに合わせて内部解像度を設定
+            const rect = wrap.getBoundingClientRect();
+            maskCanvas.width = rect.width;
+            maskCanvas.height = rect.height;
+            maskCtx = maskCanvas.getContext('2d');
+            maskStrokes = [];
+            redrawMask();
+            bindMaskEvents();
+        }
+
+        function bindMaskEvents() {
+            if (maskCanvas.dataset.bound) return;
+            maskCanvas.dataset.bound = "1";
+            const pos = (e) => {
+                const r = maskCanvas.getBoundingClientRect();
+                const p = e.touches ? e.touches[0] : e;
+                return { x: (p.clientX - r.left) * (maskCanvas.width / r.width), y: (p.clientY - r.top) * (maskCanvas.height / r.height) };
+            };
+            const start = (e) => { e.preventDefault(); drawing = true; currentStroke = { size: brushSize, points: [pos(e)] }; redrawMask(); };
+            const move = (e) => { if (!drawing) return; e.preventDefault(); currentStroke.points.push(pos(e)); redrawMask(); };
+            const end = () => { if (!drawing) return; drawing = false; if (currentStroke && currentStroke.points.length) maskStrokes.push(currentStroke); currentStroke = null; updateMaskCoverage(); };
+            maskCanvas.addEventListener('mousedown', start);
+            maskCanvas.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', end);
+            maskCanvas.addEventListener('touchstart', start, { passive: false });
+            maskCanvas.addEventListener('touchmove', move, { passive: false });
+            maskCanvas.addEventListener('touchend', end);
+        }
+
+        function drawStroke(stroke) {
+            maskCtx.strokeStyle = 'rgba(245, 158, 11, 0.55)';
+            maskCtx.fillStyle = 'rgba(245, 158, 11, 0.55)';
+            maskCtx.lineWidth = stroke.size;
+            maskCtx.lineJoin = maskCtx.lineCap = 'round';
+            const pts = stroke.points;
+            if (pts.length === 1) {
+                maskCtx.beginPath();
+                maskCtx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
+                maskCtx.fill();
+                return;
+            }
+            maskCtx.beginPath();
+            maskCtx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) maskCtx.lineTo(pts[i].x, pts[i].y);
+            maskCtx.stroke();
+        }
+
+        function redrawMask() {
+            if (!maskCtx) return;
+            maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+            maskStrokes.forEach(drawStroke);
+            if (currentStroke) drawStroke(currentStroke);
+        }
+
+        function updateBrushSize(v) { brushSize = parseInt(v); document.getElementById('brush-size-val').innerText = v + 'px'; }
+        function undoMask() { maskStrokes.pop(); redrawMask(); updateMaskCoverage(); }
+        function clearMask() { maskStrokes = []; redrawMask(); updateMaskCoverage(); }
+
+        function updateMaskCoverage() {
+            const el = document.getElementById('mask-coverage');
+            if (!maskStrokes.length) {
+                el.innerHTML = `<span class="dot"></span> マスク未指定 — 除去したい箇所をブラシで塗ってください`;
+            } else {
+                el.innerHTML = `<span class="dot"></span> マスク指定済み：${maskStrokes.length} ストローク（マスク領域のみ修復し、マスク外は変更しません）`;
+            }
+        }
+
+        function hasMask() { return maskStrokes && maskStrokes.length > 0; }
+
+        /* ===== 参考画像 D&D（見た目のみ / Vision解析デモ） ===== */
+        document.addEventListener('DOMContentLoaded', () => {
+            renderEmptyGrid();
+            document.querySelectorAll('[data-ref-drop]').forEach(zone => {
+                ['dragenter','dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
+                ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('dragover'); }));
+                zone.addEventListener('click', () => simulateVision(zone));
+                zone.addEventListener('drop', () => simulateVision(zone));
+            });
+        });
+
+        function simulateVision(zone) {
+            zone.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Vision AI が特徴を解析中...`;
+            setTimeout(() => {
+                zone.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> 解析完了：編集指示プロンプトを自動生成しました`;
+            }, 1100);
+        }
+
+        /* ===== ジョブスロット（F-17） ===== */
+        function renderEmptyGrid() {
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = MAKE_VARIATIONS.map((v, i) => `
+                <div class="result-item" id="slot-${i}">
+                    <div class="slot-state slot-waiting">
+                        <i class="fa-regular fa-image" style="font-size: 1.1rem; opacity: 0.5;"></i>
+                        画像未生成
+                        <span class="slot-strength">メイク ${v.strength}</span>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('job-progress').style.display = 'none';
+        }
+
+        function setSlotWaiting(i) {
+            const slot = document.getElementById('slot-' + i);
+            const v = MAKE_VARIATIONS[i];
+            slot.classList.remove('selected');
+            slot.innerHTML = `
+                <span class="slot-tag waiting">待機中</span>
+                <div class="slot-state slot-waiting">
+                    <i class="fa-regular fa-clock"></i>
+                    キュー待機中
+                    <span class="slot-strength">${v.label}</span>
+                </div>`;
+        }
+        function setSlotGenerating(i) {
+            const slot = document.getElementById('slot-' + i);
+            const v = MAKE_VARIATIONS[i];
+            slot.innerHTML = `
+                <span class="slot-tag generating">生成中</span>
+                <div class="slot-state slot-generating">
+                    <div class="mini-spinner"></div>
+                    生成中...
+                    <span class="slot-strength">${v.label}</span>
+                </div>`;
+        }
+        function setSlotDone(i, previewImg) {
+            const slot = document.getElementById('slot-' + i);
+            const v = MAKE_VARIATIONS[i];
+            const num = i + 1;
+            slot.onclick = function() {
+                document.querySelectorAll('.result-item').forEach(r => r.classList.remove('selected'));
+                slot.classList.add('selected');
+            };
+            slot.innerHTML = `
+                <span class="slot-tag done">完了</span>
+                <img src="${previewImg}" style="filter: ${v.filter};">
+                <div class="result-actions">
+                    <span class="result-badge">${v.label}</span>
+                    <button class="action-icon-btn" onclick="saveImage(${num}, '${v.label}'); event.stopPropagation();" title="確定：高解像度で再生成しGoogle Driveへ保存"><i class="fa-solid fa-floppy-disk"></i></button>
+                </div>`;
+        }
+        function setSlotFailed(i) {
+            const slot = document.getElementById('slot-' + i);
+            const v = MAKE_VARIATIONS[i];
+            slot.onclick = null;
+            slot.innerHTML = `
+                <span class="slot-tag failed">失敗</span>
+                <div class="slot-state slot-failed">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    生成に失敗しました
+                    <span class="slot-strength">${v.label}</span>
+                    <button class="retry-btn" onclick="retrySlot(${i})"><i class="fa-solid fa-rotate"></i> 代替プロバイダで再試行</button>
+                </div>`;
+        }
+
+        function retrySlot(i) {
+            // 障害系エラーのフォールバック（別プロバイダで再試行）
+            const previewImg = document.getElementById('src-preview').getAttribute('src');
+            setSlotGenerating(i);
+            setTimeout(() => {
+                setSlotDone(i, previewImg);
+                bumpProgress();
+                showAiTypingResponse(`候補${i + 1}（${MAKE_VARIATIONS[i].strength}）を代替プロバイダ（フォールバック）で再生成しました。障害系エラー（5xx/タイムアウト/レート制限）のみフォールバック対象で、ポリシー起因の拒否は再投入しません。`);
+            }, 1400);
+        }
+
+        let doneCount = 0;
+        function bumpProgress() {
+            doneCount++;
+            const pct = Math.round((doneCount / MAKE_VARIATIONS.length) * 100);
+            document.getElementById('job-progress-text').innerText = `${doneCount}/${MAKE_VARIATIONS.length} 完了`;
+            document.getElementById('job-progress-fill').style.width = pct + '%';
+        }
+
+        /* ===== STEP3 生成実行 ===== */
+        function executeGeneration() {
+            if (jobRunning) return;
+
+            const store = document.getElementById('store-input').value.trim();
+            const cast = document.getElementById('cast-input').value.trim();
+            const previewImg = document.getElementById('src-preview').getAttribute('src');
+
+            // バリデーション
+            if (!store) { alert("STEP 0 の店舗名が未入力です。画像整理のため店舗を選択してください。"); document.getElementById('store-input').focus(); return; }
+            if (!cast) { alert("STEP 0 のキャスト名が未入力です。画像整理のためキャスト名を選択してください。"); document.getElementById('cast-input').focus(); return; }
+            if (!previewImg) { alert("STEP 1 でキャストの元画像をアップロードしてください。"); return; }
+
+            // タトゥー除去が有効なのにマスク未指定なら警告
+            const removalCard = document.getElementById('removal-card');
+            if (removalCard.classList.contains('enabled') && !hasMask()) {
+                alert("タトゥー・不要物除去が有効ですが、マスクが未指定です。元画像上で除去範囲をブラシで塗るか、カードを無効化してください。");
+                return;
+            }
+
+            jobRunning = true;
+            doneCount = 0;
+            const loading = document.getElementById('gen-loading');
+            loading.style.display = 'flex';
+            document.getElementById('main-generate-btn').disabled = true;
+
+            // ジョブ登録（一瞬）→ Realtime購読開始 → 待機中スロット表示
+            setTimeout(() => {
+                loading.style.display = 'none';
+                sessionCount++;
+                monthCount++;
+                todayCost = +(todayCost + 0.25).toFixed(2);
+                monthCost = +(monthCost + 0.25).toFixed(2);
+                updateUsageUI();
+
+                document.getElementById('job-progress').style.display = 'flex';
+                document.getElementById('job-progress-text').innerText = `0/${MAKE_VARIATIONS.length} 完了`;
+                document.getElementById('job-progress-fill').style.width = '0%';
+
+                // 全スロット「待機中」
+                MAKE_VARIATIONS.forEach((v, i) => setSlotWaiting(i));
+
+                // 非同期ジョブ：できたものから順次反映（生成時間はスロットごとにばらつく）
+                let failedOnce = false;
+                MAKE_VARIATIONS.forEach((v, i) => {
+                    const startDelay = 250 + i * 260;
+                    const genTime = 900 + i * 520 + Math.round((i % 2) * 300);
+                    setTimeout(() => setSlotGenerating(i), startDelay);
+                    setTimeout(() => {
+                        // まれに1枚だけ障害系失敗（フォールバック導線のデモ）
+                        const fail = !failedOnce && i === 3 && Math.random() < 0.5;
+                        if (fail) { failedOnce = true; setSlotFailed(i); }
+                        else { setSlotDone(i, previewImg); bumpProgress(); }
+                        if (i === MAKE_VARIATIONS.length - 1) finishGeneration();
+                    }, startDelay + genTime);
+                });
+            }, 900);
+        }
+
+        function finishGeneration() {
+            jobRunning = false;
+            document.getElementById('main-generate-btn').disabled = false;
+
+            const activeCats = [];
+            document.querySelectorAll('.card[data-category]').forEach(card => {
+                if (card.classList.contains('enabled')) activeCats.push(card.getAttribute('data-category'));
+            });
+            const removal = document.getElementById('removal-card').classList.contains('enabled') && hasMask()
+                ? ' タトゥー除去はマスク領域のみをインペインティング修復しています（マスク外は不変）。' : '';
+            const responseText = `抽象化レイヤー経由でメイク強度「弱・中・強」各2枚、計6枚のドラフト候補（1K）を非同期生成しました。反映レイヤー：${activeCats.join('・')}。${removal}気に入った1枚を選び、下のチャットから部分修正できます。保存時に高解像度（2K以上）で再生成します。`;
+            showAiTypingResponse(responseText);
+        }
+
+        /* ===== F-10 表示更新（ハードリミットなし・可視化とアラートのみ） ===== */
+        function updateUsageUI() {
+            document.getElementById('session-count').innerText = sessionCount;
+            document.getElementById('month-count').innerText = monthCount;
+            document.getElementById('today-cost').innerText = '$' + todayCost.toFixed(2);
+            document.getElementById('mini-month-count').innerText = monthCount + ' 回';
+            document.getElementById('mini-month-cost').innerText = '$' + monthCost.toFixed(2);
+
+            const alertBox = document.getElementById('rate-alert');
+            const alertText = document.getElementById('rate-alert-text');
+            if (todayCost >= costThreshold) {
+                alertBox.classList.add('show', 'cost');
+                alertText.innerText = `本日の推定コストが閾値 $${costThreshold} を超過しました。管理者へ通知しました（Slack）。`;
+            } else if (sessionCount >= rateThreshold) {
+                alertBox.classList.add('show');
+                alertBox.classList.remove('cost');
+                alertText.innerText = `短時間に${rateThreshold}回以上の生成が行われています。管理者へ通知しました（Slack）。※強制停止は行いません。`;
+            } else {
+                alertBox.classList.remove('show', 'cost');
+            }
+        }
+
+        /* ===== チャット（F-05 逐次編集） ===== */
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const selected = document.querySelector('.result-item.selected');
+            if (!selected) {
+                appendSystemWarn('先に修正対象の候補画像を1枚選択してください（逐次編集は選択画像を入力とします）。');
+                return;
+            }
+
+            const history = document.getElementById('chat-history');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'msg user';
+            userMsg.innerText = text;
+            history.appendChild(userMsg);
+            input.value = '';
+            history.scrollTop = history.scrollHeight;
+
+            chatEditCount++;
+            if (chatEditCount > 5) {
+                appendSystemWarn('連続編集が5回を超えました。反復による画質劣化を避けるため、原本からの再編集をおすすめします（F-05）。');
+            }
+
+            setTimeout(() => {
+                showAiTypingResponse(`調整指示「${text}」を受け付けました。本人性を保持したまま、直前に選択した候補を入力とする逐次編集として該当レイヤーのみを再サンプリングします。`);
+            }, 500);
+        }
+
+        function appendSystemWarn(msg) {
+            const history = document.getElementById('chat-history');
+            const el = document.createElement('div');
+            el.className = 'msg system-warn';
+            el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${msg}`;
+            history.appendChild(el);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        function showAiTypingResponse(fullText) {
+            const history = document.getElementById('chat-history');
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'msg assistant';
+            typingIndicator.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+            history.appendChild(typingIndicator);
+            history.scrollTop = history.scrollHeight;
+
+            setTimeout(() => {
+                typingIndicator.remove();
+                const aiMsg = document.createElement('div');
+                aiMsg.className = 'msg assistant';
+                history.appendChild(aiMsg);
+                let index = 0;
+                (function type() {
+                    if (index < fullText.length) {
+                        aiMsg.innerText += fullText.charAt(index);
+                        index++;
+                        history.scrollTop = history.scrollHeight;
+                        setTimeout(type, 12);
+                    }
+                })();
+            }, 700);
+        }
+
+        /* ===== STEP5 保存（確定：高解像度2K再生成 + Google Drive） ===== */
+        function saveImage(index, label) {
+            const store = document.getElementById('store-input').value.trim() || '店舗';
+            const cast = document.getElementById('cast-input').value.trim() || 'キャスト';
+            const fileName = `${document.getElementById('session-title').value}_候補${index}`;
+            alert(`候補${index}（${label}）を確定します。\n\n① 当該1枚のみを高解像度（2K以上）で再生成\n② Google Drive API（共有ドライブ）経由で「${store} / ${cast}」フォルダ（フォルダIDで解決）へ自動保存\n③ 履歴レコードに Drive ファイルID・閲覧URL・使用モデル・推定コストを記録\n\nファイル名: ${fileName}.png`);
+        }
+
+        /* ===== セッション操作 ===== */
+        function createNewSession() {
+            if (!confirm("現在の加工設定をクリアして、新しい画像加工を開始しますか？")) return;
+            document.getElementById('src-file').value = '';
+            document.getElementById('src-preview').src = '';
+            document.getElementById('src-preview').setAttribute('src', '');
+            document.getElementById('preview-container').style.display = 'none';
+            document.getElementById('upload-placeholder').style.display = 'block';
+            document.getElementById('cast-input').value = '';
+            document.getElementById('make-select').value = '';
+
+            // カテゴリを全て無効・テンプレ未選択に戻す
+            document.querySelectorAll('.card[data-category]:not([data-category="メイク"])').forEach(card => {
+                const cb = card.querySelector('.card-enable input');
+                if (cb) { cb.checked = false; toggleCard(cb); }
+                const sel = card.querySelector('.tpl-select'); if (sel) sel.value = '';
+            });
+
+            // マスクUIリセット
+            document.getElementById('mask-workspace').classList.remove('show');
+            document.getElementById('mask-empty').style.display = 'flex';
+            maskStrokes = [];
+
+            document.getElementById('session-title').value = "新規画像加工セッション";
+            sessionCount = 0;
+            chatEditCount = 0;
+            updateUsageUI();
+            renderEmptyGrid();
+            autoGenerateTitle();
+        }
+
+        function loadHistory(element, sessionName) {
+            document.querySelectorAll('.history-item').forEach(item => item.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('session-title').value = sessionName;
+        }
+
+        function toggleChatExpand() {
+            const chatBox = document.getElementById('chat-section-box');
+            const expandText = document.getElementById('expand-text');
+            const iconFa = document.getElementById('expand-icon-fa');
+            const history = document.getElementById('chat-history');
+            if (chatBox.classList.contains('expanded')) {
+                chatBox.classList.remove('expanded');
+                iconFa.className = "fa-solid fa-expand";
+                expandText.innerText = "全画面表示";
+            } else {
+                chatBox.classList.add('expanded');
+                iconFa.className = "fa-solid fa-compress";
+                expandText.innerText = "元に戻す";
+            }
+            history.scrollTop = history.scrollHeight;
+        }
+
+        function openSettings() {
+            rateThreshold = parseInt(document.getElementById('setting-rate-threshold').value) || 8;
+            costThreshold = parseFloat(document.getElementById('setting-cost-threshold').value) || 5;
+            document.getElementById('settings-modal').style.display = 'flex';
+        }
+        function closeSettings() {
+            rateThreshold = parseInt(document.getElementById('setting-rate-threshold').value) || 8;
+            costThreshold = parseFloat(document.getElementById('setting-cost-threshold').value) || 5;
+            updateUsageUI();
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+
+        /* ===== F-04 規約抵触警告 ===== */
+        function showModerationWarning(category) {
+            const box = document.getElementById('moderation-warning-box');
+            document.getElementById('moderation-warning-text').innerText = `⚠️【${category}】の内容または参考画像が規約に抵触している可能性があります。許可済みテンプレートから選び直してください。`;
+            box.style.display = 'flex';
+        }
+        function closeModerationWarning() { document.getElementById('moderation-warning-box').style.display = 'none'; }
+        function testModerationWarning() {
+            const categories = ['背景', '衣装', '髪型', 'ポーズ', '雰囲気', 'メイク', 'タトゥー除去'];
+            showModerationWarning(categories[Math.floor(Math.random() * categories.length)]);
+        }
+    </script>
+</body>
+</html>
