@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
 import { DriveError, diagnoseDrive, inspectRootFolder } from "@/lib/drive";
 import { listOrphanFolders, resyncPendingImages } from "@/lib/driveSync";
 
@@ -16,17 +17,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  return user && admins.includes((user.email ?? "").toLowerCase()) ? user : null;
-}
 
 export async function GET() {
   if (!(await requireAdmin())) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { envAdmins, requireAdmin } from "@/lib/auth";
 import { diagnoseWebhook, isSlackConfigured } from "@/lib/slack";
 
 /**
@@ -14,22 +15,7 @@ import { diagnoseWebhook, isSlackConfigured } from "@/lib/slack";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function isAdmin(email: string | undefined): boolean {
-  if (!email) return false;
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.toLowerCase());
-}
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return isAdmin(user?.email) ? user : null;
-}
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -49,7 +35,7 @@ export async function GET() {
 
   const { data: users } = await admin
     .from("profiles")
-    .select("email, max_images, used_images, last_call_at")
+    .select("email, role, max_images, used_images, last_call_at")
     .order("created_at", { ascending: true });
 
   // 直近の通知が届いているか（黙って失敗していることに気づけるように）
@@ -61,6 +47,8 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    // 環境変数で固定されている管理者（画面で「固定」と出す）
+    pinnedAdmins: envAdmins(),
     limits,
     today,
     users: users ?? [],

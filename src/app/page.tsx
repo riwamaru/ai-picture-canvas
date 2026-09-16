@@ -1,29 +1,14 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth";
 import { buildCatalog } from "@/lib/catalog";
 import { AppShell } from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   // middleware でも弾いているが、ここでも確認する（マッチャの書き間違いを認証の穴にしない）。
-  if (!user) redirect("/login");
+  const current = await currentUser();
+  if (!current) redirect("/login");
 
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-
-  return (
-    <AppShell
-      catalog={buildCatalog()}
-      email={user.email ?? ""}
-      isAdmin={admins.includes((user.email ?? "").toLowerCase())}
-    />
-  );
+  return <AppShell catalog={buildCatalog()} email={current.user.email ?? ""} isAdmin={current.isAdmin} />;
 }

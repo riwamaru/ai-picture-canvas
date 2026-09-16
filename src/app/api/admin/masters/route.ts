@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
 
 /**
  * 店舗・キャストの台帳の管理（管理画面）。ADMIN_EMAILS の人だけ。
@@ -17,17 +18,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  return user && admins.includes((user.email ?? "").toLowerCase()) ? user : null;
-}
 
 function normalizeYm(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;

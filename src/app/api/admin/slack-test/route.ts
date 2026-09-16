@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
 import { isSlackConfigured, notifyJobFinished } from "@/lib/slack";
 
 /**
- * Slack へテスト送信する。ADMIN_EMAILS の人だけ。
+ * Slack へテスト送信する。管理者だけ。
  *
  * 「設定したつもりで届いていない」を配る前に潰すためのもの。
  * 生成は一切行わないので費用はかからない。
@@ -14,17 +14,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (!user?.email || !admins.includes(user.email.toLowerCase())) {
+  const user = await requireAdmin();
+  if (!user) {
     return NextResponse.json({ ok: false, message: "権限がありません。" }, { status: 403 });
   }
 
@@ -59,7 +50,7 @@ export async function POST() {
     {
       // 表示用のダミー。記録側には渡さない（実在しないので外部キーに弾かれる）。
       jobId: "テスト送信",
-      email: user.email,
+      email: user.email ?? user.id,
       mode: "normal",
       storeName: "（テスト送信）",
       castName: "（テスト送信）",

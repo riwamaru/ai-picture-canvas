@@ -83,6 +83,7 @@ type SlackState = {
 
 type UserRow = {
   email: string;
+  role: "admin" | "staff";
   max_images: number;
   used_images: number;
   last_call_at: string | null;
@@ -124,6 +125,9 @@ export function AdminPanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMax, setInviteMax] = useState(24);
   const [inviteWithPassword, setInviteWithPassword] = useState(true);
+  const [inviteRole, setInviteRole] = useState<"admin" | "staff">("staff");
+  const [pinnedAdmins, setPinnedAdmins] = useState<string[]>([]);
+  const [userNotice, setUserNotice] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteResult, setInviteResult] = useState<{
     ok: boolean;
@@ -147,6 +151,7 @@ export function AdminPanel() {
       setLimits(data.limits as Limits);
       setToday(data.today ?? null);
       setUsers((data.users ?? []) as UserRow[]);
+      setPinnedAdmins((data.pinnedAdmins ?? []) as string[]);
       setSlack((data.slack ?? null) as SlackState | null);
 
       // Drive の状態は別のルート（孤児フォルダの点検などで重いため）
@@ -183,6 +188,29 @@ export function AdminPanel() {
     }
   }
 
+  /** 利用者のロール・枚数上限を後から変える。 */
+  async function updateUser(email: string, patch: { role?: "admin" | "staff"; maxImages?: number }) {
+    setUserNotice(null);
+    const response = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, ...patch }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { ok?: boolean; message?: string; pinnedAdmin?: boolean }
+      | null;
+    if (!response.ok || !data?.ok) {
+      setUserNotice(data?.message ?? "変更できませんでした。");
+      return;
+    }
+    if (patch.role === "staff" && data.pinnedAdmin) {
+      setUserNotice(`${email} は環境変数（ADMIN_EMAILS）で管理者に固定されているため、利用者にしても管理者のままです。`);
+    } else {
+      setUserNotice("変更しました。");
+    }
+    void reload();
+  }
+
   async function invite(event: React.FormEvent) {
     event.preventDefault();
     setInviteBusy(true);
@@ -194,6 +222,7 @@ export function AdminPanel() {
         email: inviteEmail,
         maxImages: inviteMax,
         withPassword: inviteWithPassword,
+        role: inviteRole,
       }),
     });
     const data = await response.json().catch(() => null);
@@ -866,6 +895,13 @@ export function AdminPanel() {
                   onChange={(e) => setInviteMax(Number(e.target.value))}
                 />
               </div>
+              <div className="setting-field">
+                <label>ロール</label>
+                <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "staff")}>
+                  <option value="staff">利用者（加工画面のみ）</option>
+                  <option value="admin">管理者（設定・招待・台帳も）</option>
+                </select>
+              </div>
               <button className="crb-btn primary" type="submit" disabled={inviteBusy}>
                 {inviteBusy ? "招待中…" : "招待する"}
               </button>
@@ -911,10 +947,13 @@ export function AdminPanel() {
           <div className="settings-section-title">
             利用者と消費枚数 <span className="sec-badge">F-07</span>
           </div>
-          <table className="log-table">
+          {userNotice && <div className="invite-result">{userNotice}</div>}
+          <div className="tablewrap">
+          <table className="log-table masters-table">
             <thead>
               <tr>
                 <th>メールアドレス</th>
+                <th>ロール</th>
                 <th>消費 / 上限</th>
                 <th>最終利用</th>
               </tr>
@@ -922,24 +961,62 @@ export function AdminPanel() {
             <tbody>
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={3}>まだ利用者がいません</td>
+                  <td colSpan={4}>まだ利用者がいません</td>
                 </tr>
               )}
-              {users.map((user) => (
-                <tr key={user.email}>
-                  <td>{user.email}</td>
-                  <td>
-                    {user.used_images} / {user.max_images} 枚
-                  </td>
-                  <td>
-                    {user.last_call_at
-                      ? new Date(user.last_call_at).toLocaleString("ja-JP")
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const pinned = pinnedAdmins.includes(user.email.toLowerCase());
+                return (
+                  <tr key={user.email}>
+                    <td>{user.email}</td>
+                    <td>
+                      <select
+                        value={pinned ? "admin" : user.role}
+                        disabled={pinned}
+                        title={pinned ? "環境変数（ADMIN_EMAILS）で管理者に固定されています" : "ロールを変える"}
+                        onChange={(e) => void updateUser(user.email, { role: e.target.value as "admin" | "staff" })}
+                      >
+                        <option value="staff">利用者</option>
+                        <option value="admin">管理者</option>
+                      </select>
+                      {pinned && <span className="sec-badge" style={{ marginLeft: 6 }}>固定</span>}
+                    </td>
+                    <td>
+                      {user.used_images} /{" "}
+                      <input
+                        type="number"
+                        className="narrow"
+                        min={1}
+                        max={500}
+                        defaultValue={user.max_images}
+                        title="枚数上限（変えて Enter か、欄の外をクリック）"
+                        onBlur={(e) => {
+                          const value = Number(e.target.value);
+                          if (Number.isInteger(value) && value !== user.max_images) {
+                            void updateUser(user.email, { maxImages: value });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                      />{" "}
+                      枚
+                    </td>
+                    <td>
+                      {user.last_call_at
+                        ? new Date(user.last_call_at).toLocaleString("ja-JP")
+                        : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          </div>
+          <div className="setting-note">
+            管理者は /admin と、招待・上限・台帳・Drive の操作ができます。利用者は加工画面だけです。
+            自分自身を利用者にはできません。
+          </div>
 
                       </>
           )}

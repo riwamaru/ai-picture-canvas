@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin, type Role } from "@/lib/auth";
 
 /**
- * 招待。ADMIN_EMAILS に載っている人だけが叩ける。
+ * 招待。管理者だけが叩ける。
  *
  * ★ 招待は 2 段構えになっている：
  *     ① allowed_emails へ入れる（DB のトリガが「載っていないアドレス」を拒否する）
@@ -19,21 +19,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-}
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const callerEmail = user?.email?.toLowerCase();
-  if (!callerEmail || !adminEmails().includes(callerEmail)) {
+  if (!(await requireAdmin())) {
     // 招待できる人かどうかを外から探れないよう、理由は返さない。
     return NextResponse.json({ ok: false, message: "権限がありません。" }, { status: 403 });
   }
@@ -43,7 +31,11 @@ export async function POST(request: Request) {
     maxImages?: unknown;
     withPassword?: unknown;
     note?: unknown;
+    role?: unknown;
   } | null;
+
+  // ロール（F-08）。既定は利用者。管理者にするのは明示的に選んだときだけ
+  const role: Role = body?.role === "admin" ? "admin" : "staff";
 
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -61,6 +53,7 @@ export async function POST(request: Request) {
     {
       email,
       max_images: maxImages,
+      role,
       note: typeof body?.note === "string" ? body.note.slice(0, 200) : null,
     },
     { onConflict: "email" },
@@ -80,13 +73,14 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (existing) {
-    await admin.from("profiles").update({ max_images: maxImages }).eq("id", existing.id);
+    await admin.from("profiles").update({ max_images: maxImages, role }).eq("id", existing.id);
     return NextResponse.json({
       ok: true,
       alreadyInvited: true,
       email,
       maxImages,
-      message: "すでに招待済みです。上限枚数だけ更新しました。",
+      role,
+      message: "すでに招待済みです。上限枚数とロールを更新しました。",
     });
   }
 

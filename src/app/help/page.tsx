@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth";
 
 /**
  * ユーザー用マニュアル（ヘルプ＆ドキュメント）。
@@ -26,17 +26,9 @@ const TOC: { id: string; label: string }[] = [
 ];
 
 export default async function HelpPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  const isAdmin = admins.includes((user.email ?? "").toLowerCase());
+  const current = await currentUser();
+  if (!current) redirect("/login");
+  const isAdmin = current.isAdmin;
 
   return (
     <div className="help-page">
