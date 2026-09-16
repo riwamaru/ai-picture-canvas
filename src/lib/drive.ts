@@ -1,3 +1,5 @@
+import { getVercelOidcToken } from "@vercel/functions/oidc";
+
 /**
  * Google Drive（共有ドライブ）への確定画像の保存。
  * 機能仕様書 v2.1 F-06 ／ 4.7「Google Drive 連携」の実装。
@@ -11,7 +13,12 @@
  *
  * 代わりに Workload Identity 連携を使う。流れは 3 段：
  *
- *   ① Vercel が実行のたびに OIDC トークンを発行する（VERCEL_OIDC_TOKEN）
+ *   ① Vercel が実行のたびに OIDC トークンを発行する
+ *      ★ 本番の関数実行時は環境変数ではなく、リクエストヘッダ
+ *        x-vercel-oidc-token で届く。環境変数 VERCEL_OIDC_TOKEN に入るのは
+ *        `vercel env pull` で取ったローカル用だけ。環境変数だけを見ていると
+ *        本番で「来ていない」と誤判定する（実際にそうなった）。
+ *        取り出しは Vercel 公式の getVercelOidcToken() に任せる。
  *   ② Google の STS がそれを検証し、連携用の一時トークンへ交換する
  *   ③ そのトークンでサービスアカウントになりすまし、1 時間有効の
  *      アクセストークンを受け取る
@@ -154,17 +161,28 @@ export type DriveDiagnosis = {
  * 「設定したのに認識されない」を切り分けるための診断。
  * ★ トークンや監査値は返さない。返すのは「どの設定が欠けているか」だけ。
  */
-export function diagnoseDrive(): DriveDiagnosis {
+/**
+ * Vercel の OIDC トークンを取り出す。無ければ null（例外にしない）。
+ *
+ * ★ process.env.VERCEL_OIDC_TOKEN を直接読んではならない。
+ *   本番ではヘッダで届くため、環境変数は空である。
+ */
+async function readOidcToken(): Promise<string | null> {
+  try {
+    const token = await getVercelOidcToken();
+    return token?.trim() ? token.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 環境変数だけで判定できる範囲の診断（同期）。 */
+function diagnoseConfig(): Omit<DriveDiagnosis, "oidcPresent"> {
   const audience = process.env.GOOGLE_DRIVE_WIF_AUDIENCE?.trim() ?? "";
   const serviceAccount = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT?.trim() ?? "";
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ?? "";
-  const oidcPresent = Boolean(process.env.VERCEL_OIDC_TOKEN?.trim());
 
-  const base = {
-    serviceAccount: serviceAccount || null,
-    rootFolderId: rootFolderId || null,
-    oidcPresent,
-  };
+  const base = { serviceAccount: serviceAccount || null, rootFolderId: rootFolderId || null };
 
   const missing: string[] = [];
   if (!audience) missing.push("GOOGLE_DRIVE_WIF_AUDIENCE");
@@ -196,18 +214,28 @@ export function diagnoseDrive(): DriveDiagnosis {
     };
   }
 
+  return { ...base, configured: true, reason: "設定済みです。" };
+}
+
+export async function diagnoseDrive(): Promise<DriveDiagnosis> {
+  const config = diagnoseConfig();
+  const oidcPresent = (await readOidcToken()) !== null;
+
+  if (!config.configured) return { ...config, oidcPresent };
+
   if (!oidcPresent) {
     return {
-      ...base,
+      ...config,
+      oidcPresent,
       configured: false,
       reason:
-        "Vercel の OIDC トークン（VERCEL_OIDC_TOKEN）が来ていません。" +
-        "Vercel のプロジェクト設定で OIDC フェデレーションを有効にしてください。" +
+        "Vercel の OIDC トークンが届いていません。" +
+        "Vercel のプロジェクト設定（Settings → Security → OIDC Federation）が有効か確認してください。" +
         "ローカルで試す場合は `npx vercel env pull` でトークンを取得します（数時間で失効します）。",
     };
   }
 
-  return { ...base, configured: true, reason: "設定済みです。" };
+  return { ...config, oidcPresent };
 }
 
 // ---------------------------------------------------------------------------
@@ -231,12 +259,12 @@ async function accessToken(credentials: Credentials): Promise<string> {
     return cachedToken.value;
   }
 
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim();
+  const oidcToken = await readOidcToken();
   if (!oidcToken) {
     throw new DriveError(
       "config",
-      "Vercel の OIDC トークンがありません。" +
-        "Vercel のプロジェクト設定で OIDC フェデレーションを有効にしてください" +
+      "Vercel の OIDC トークンが届いていません。" +
+        "Vercel のプロジェクト設定（Settings → Security → OIDC Federation）が有効か確認してください" +
         "（ローカルでは `npx vercel env pull` で取得できます。数時間で失効します）。",
     );
   }
@@ -775,7 +803,7 @@ export async function uploadImage(input: {
 
 export function requireCredentials(): Credentials {
   const credentials = readCredentials();
-  if (!credentials) throw new DriveError("config", diagnoseDrive().reason);
+  if (!credentials) throw new DriveError("config", diagnoseConfig().reason);
   return credentials;
 }
 

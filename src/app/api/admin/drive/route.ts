@@ -58,7 +58,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     // 鍵は返さない。返すのは「設定できているか」と、共有ドライブへ招待する相手のアドレスだけ。
-    diagnosis: diagnoseDrive(),
+    diagnosis: await diagnoseDrive(),
     syncedCount: syncedCount ?? 0,
     pending: pending ?? [],
     folders: folders ?? [],
