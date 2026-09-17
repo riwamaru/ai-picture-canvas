@@ -1,4 +1,5 @@
 import {
+  acceptsReferenceImages,
   MAKEUP_STRENGTHS,
   PROCESS_KIND,
   type CategoryId,
@@ -150,8 +151,11 @@ export function buildCatalog(): Catalog {
         processKind: kind,
         processLabelJa: PROCESS_LABEL[kind],
         required: id === "makeup",
-        // 確定 UI ではタトゥー除去カードにだけ参考画像欄が無い（機能仕様書 2.3.2）。
-        acceptsReferences: kind !== "C",
+        // ★ 参考画像を受け付けるのは種別 B（背景・衣装・髪型・ポーズ）だけ（仕様書 4.2.1）。
+        //   以前は「除去以外すべて」にしていたため、雰囲気・メイクのカードにも欄が出て、
+        //   生成側（vendor/prompts）で「受け付けないカテゴリ」と弾かれていた。
+        //   判定は生成側と同じ関数に揃える。
+        acceptsReferences: acceptsReferenceImages(id),
         requiresMask: kind === "C",
         selectLabelJa: display.selectLabelJa,
         freeTextLabelJa: display.freeTextLabelJa,
