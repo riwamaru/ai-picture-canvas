@@ -771,6 +771,24 @@ export function AppShell({
       setGateMessage("STEP 1 でキャストの元画像をアップロードしてください。");
       return;
     }
+    // 有効にしたカードは、テンプレート・参考画像・自由記述のどれか 1 つが要る（メイク以外）
+    if (mode === "normal") {
+      const empty = catalog.categories.find(
+        (c) =>
+          c.id !== "makeup" &&
+          c.id !== "tattoo_removal" &&
+          enabled[c.id] &&
+          !templateIds[c.id] &&
+          !(freeTexts[c.id] ?? "").trim() &&
+          (refFiles[c.id] ?? []).length === 0,
+      );
+      if (empty) {
+        setGateMessage(
+          `STEP 2「${empty.titleJa}」が有効ですが中身がありません。テンプレート・参考画像・自由記述のどれか 1 つを入れるか、カードを無効にしてください。`,
+        );
+        return;
+      }
+    }
     if (removalOn && maskStrokes === 0) {
       setGateMessage("マスクが未指定です。元画像上で除去したい範囲をブラシで塗ってください。");
       return;
@@ -1668,7 +1686,7 @@ export function AppShell({
                           </label>
                         )}
                         <div className="ref-note">
-                          参考画像はそのまま生成 API へ送られ、テンプレートと併用されます（仕様書 4.2.5）。
+                          参考画像はそのまま生成 API へ送られます。<strong>テンプレートより参考画像が優先</strong>され、テンプレートは補助になります。
                           このカードを無効にすると送られません。
                         </div>
                       </div>
@@ -1684,7 +1702,9 @@ export function AppShell({
                           setTemplateIds((c) => ({ ...c, [category.id]: e.target.value }))
                         }
                       >
-                        <option value="">選択してください（未選択）</option>
+                        <option value="">
+                          {category.acceptsReferences ? "選択しない（参考画像・自由記述だけでも可）" : "選択しない（自由記述だけでも可）"}
+                        </option>
                         {category.templates.map((template) => (
                           <option key={template.id} value={template.id}>
                             {template.labelJa}

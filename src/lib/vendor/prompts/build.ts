@@ -209,37 +209,68 @@ export function buildPrompt(spec: PromptSpec): BuiltPrompt {
   }
 
   // メイク以外の有効カテゴリ。宣言順で走査する。
+  //
+  // ★ デモ環境での変更点（委託者指示・2026-09-17。PoC からの差分）。
+  //
+  //   PoC はテンプレートを必須としていた。デモでは
+  //     参考画像 ／ テンプレート ／ 自由記述 のどれか 1 つがあれば通す。
+  //   さらに **参考画像があればそれを優先**する：
+  //     - 参考画像の指示を先に置き、「主たる目標」と明示する
+  //     - テンプレートは補助に格下げし、「食い違ったら参考画像に従え」と添える
+  //   （先に置いた指示ほど効く、という 2026-08-16 の実測に合わせた並び）
   for (const id of enabled) {
     if (id === "makeup") continue;
     const input = spec.categories[id];
     if (!input) continue;
 
-    if (input.templateId === undefined) {
+    const hasTemplate = input.templateId !== undefined;
+    const hasReference = input.referenceCount > 0;
+    const hasFreeText = Boolean(input.freeText);
+
+    if (!hasTemplate && !hasReference && !hasFreeText) {
       throw new PromptSpecError(
-        `${CATEGORY_LABEL_JA[id]}（${id}）にはテンプレート ID が必要です。`,
-      );
-    }
-    const template = requireTemplate(input.templateId);
-    if (template.categoryId !== id) {
-      throw new PromptSpecError(
-        `テンプレート ${template.id} はカテゴリ ${template.categoryId} 用です（指定: ${id}）。`,
+        `${CATEGORY_LABEL_JA[id]}（${id}）は、テンプレート・参考画像・自由記述のどれか 1 つが必要です。`,
       );
     }
 
-    lines.push(`${labelEn(id)}: ${template.instruction}`);
-    notes.push(`${CATEGORY_LABEL_JA[id]}: ${template.noteJa}`);
+    const label = labelEn(id);
 
-    if (input.freeText) {
-      lines.push(`Additional ${labelEn(id).toLowerCase()} note: ${input.freeText}`);
-      notes.push(`${CATEGORY_LABEL_JA[id]}自由入力: ${input.freeText}`);
-    }
-    if (input.referenceCount > 0) {
+    if (hasReference) {
       lines.push(
-        `Use the provided reference image(s) as the visual target for ${labelEn(id).toLowerCase()}.`,
+        `${label}: match the provided reference image(s) for the ${label.toLowerCase()} — ` +
+          `they are the primary visual target.`,
       );
       notes.push(
-        `${CATEGORY_LABEL_JA[id]}: 参考画像 ${input.referenceCount} 枚を視覚的な目標として使う。`,
+        `${CATEGORY_LABEL_JA[id]}: 参考画像 ${input.referenceCount} 枚を主たる目標として合わせる。`,
       );
+    }
+
+    if (hasTemplate) {
+      const template = requireTemplate(input.templateId!);
+      if (template.categoryId !== id) {
+        throw new PromptSpecError(
+          `テンプレート ${template.id} はカテゴリ ${template.categoryId} 用です（指定: ${id}）。`,
+        );
+      }
+      if (hasReference) {
+        lines.push(
+          `${label} guidance (secondary to the reference images; if they conflict, follow the reference images): ` +
+            template.instruction,
+        );
+        notes.push(`${CATEGORY_LABEL_JA[id]}の補助（参考画像と食い違えば参考画像を優先）: ${template.noteJa}`);
+      } else {
+        lines.push(`${label}: ${template.instruction}`);
+        notes.push(`${CATEGORY_LABEL_JA[id]}: ${template.noteJa}`);
+      }
+    }
+
+    if (hasFreeText) {
+      lines.push(
+        hasTemplate || hasReference
+          ? `Additional ${label.toLowerCase()} note: ${input.freeText}`
+          : `${label}: ${input.freeText}`,
+      );
+      notes.push(`${CATEGORY_LABEL_JA[id]}自由入力: ${input.freeText}`);
     }
   }
 

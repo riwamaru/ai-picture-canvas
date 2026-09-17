@@ -98,9 +98,17 @@ function parseSelection(
       freeTexts[categoryId] = text;
     }
 
-    // メイク以外はテンプレート必須（buildPrompt が要求する）。
-    if (categoryId !== "makeup" && input.templateId === undefined) {
-      throw new Error(`テンプレートを選んでください（${categoryId}）。`);
+    // メイク以外は、テンプレート・参考画像・自由記述のどれか 1 つがあれば通す
+    // （委託者指示・2026-09-17。buildPrompt も同じ条件で検証する）。
+    if (
+      categoryId !== "makeup" &&
+      input.templateId === undefined &&
+      input.freeText === undefined &&
+      input.referenceCount === 0
+    ) {
+      throw new Error(
+        `${CATEGORY_LABEL_JA[categoryId]}：テンプレート・参考画像・自由記述のどれか 1 つを入れてください。`,
+      );
     }
 
     categories[categoryId] = input;
