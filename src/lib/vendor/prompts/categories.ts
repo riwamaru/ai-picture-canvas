@@ -67,9 +67,15 @@ export const MAKEUP_STRENGTH_LABEL_JA: Record<MakeupStrength, string> = {
  * カテゴリが参考画像を持てるか。
  * 機能仕様書 2.3.2：「各カード上部に参考画像アップロードエリア（タトゥー除去カードを除く）」
  * タトゥー除去はマスク描画 UI を持つため参考画像欄を持たない。
+ *
+ * ★ 委託者指示（2026-09-17）：雰囲気（mood）も参考画像を受け付ける。
+ *   仕様書 4.2.1 では雰囲気は種別 A（テキスト指示のみ）だが、
+ *   「こういう雰囲気の写真」を見本として渡したい場面が実際にあるため。
+ *   PROCESS_KIND は変えない（雰囲気の処理種別は A のまま。参考画像を添えるだけ）。
+ *   ★ PoC 側（../poc）はこの変更を含まない。デモだけの差分。
  */
 export function acceptsReferenceImages(category: CategoryId): boolean {
-  return PROCESS_KIND[category] === "B";
+  return PROCESS_KIND[category] === "B" || category === "mood";
 }
 
 /**
