@@ -1,0 +1,2681 @@
+{
+  "note": "複数の参考写真から共通のメイクを起こした記録。images は写真ごとの解析、synthesis が統合案。本番に載せる文言は人が読んで直し、templates.demo.ts に書く（このファイルは根拠として残す）。写真そのものは git に入れない。",
+  "name": "kyabajo_standard",
+  "model": "gemini-3.8-flash",
+  "dirs": [
+    "/Users/user/Documents/vexum-inc/エスペランサ/写真入れ替え/メイク変更/メイク参考画像/barcelona_nakasu_tori",
+    "/Users/user/Documents/vexum-inc/エスペランサ/写真入れ替え/メイク変更/メイク参考画像/tori_nakasu_aina",
+    "/Users/user/Documents/vexum-inc/エスペランサ/写真入れ替え/メイク変更/メイク参考画像/tori_nakasu_eri",
+    "/Users/user/Documents/vexum-inc/エスペランサ/写真入れ替え/メイク変更/メイク参考画像/tori_nakasu_shion"
+  ],
+  "images": [
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0AMeJ9V1_01.jpg",
+      "imageSha256": "dc2eca7d1db495261b2bceaf4a487e52a65fdcce27050918b336f9955efe9c46",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy and luminous finish with even coverage, featuring targeted high-shine radiance on the high points of the face",
+          "eyes": "Soft peachy-coral eyeshadow diffused over the lids and lower lash line; highlighted shimmer on the aegyo sal with soft shading beneath; thin black liquid eyeliner along the upper lash line ending in a subtle downturned/straight wing; curled and defined individual upper lashes with mascara, delicate lower lashes",
+          "brows": "Natural, soft straight-shaped brows filled with light brown tone, maintaining a feathered and soft-focus texture",
+          "cheeks": "Warm coral-pink blush applied softly across the apples of the cheeks; subtle champagne highlighter on the cheekbone apex and tip of the nose",
+          "lips": "Glossy gradient lip with a muted rose-coral hue concentrated in the center and blurred edges, topped with a high-shine clear gloss"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 449
+        },
+        "costUsd": 0.00269,
+        "latencyMs": 7774
+      },
+      "analyzedAt": "2026-09-22T07:43:59.975Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0BGjJGdm_01.jpg",
+      "imageSha256": "f72ae45bfa64ede0f5870b850e232581d242affd36990730075f2957c7490471",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, dewy-satin finish with even coverage; soft highlighting on the bridge and tip of the nose and center of forehead; subtle contouring along the nose bridge and jawline",
+          "eyes": "Soft wash of neutral peach and light taupe eyeshadow across the mobile lid; defined aegyo-sal with shimmer highlighter; fine, tightlined black upper eyeliner slightly extended into a subtle soft wing; cleanly separated, curled upper lashes with lengthening mascara and delicate lower lash mascara",
+          "brows": "Straight, softly filled brows in a warm light brown shade with a natural, diffuse powdered finish",
+          "cheeks": "Soft peachy-pink blush applied lightly across the high apples of the cheeks blending upwards; subtle dewy highlighter on the upper cheekbones",
+          "lips": "Glossy peachy-coral lip color with a soft, blurred vermilion border and concentration of shine and color toward the inner center"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 628
+        },
+        "costUsd": 0.003362,
+        "latencyMs": 9821
+      },
+      "analyzedAt": "2026-09-22T07:44:02.025Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0GYoJYpm_01.jpg",
+      "imageSha256": "89a57b537a7b983196ed22b61ac53ba9d8237ea1dd76d17bcdf598915c914b2a",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy, radiant glass-skin finish with luminous liquid highlights on the forehead, bridge of the nose, and chin",
+          "eyes": "Soft peachy-apricot wash on the lids and lower lash line; subtle brown tightline eyeliner; prominent doll-like, separated and spiky upper and lower lashes with mascara; subtle shimmer on the inner corners and aegyo-sal area",
+          "brows": "Softly filled, straight with a gentle arch, in a light taupe-brown shade with natural hair texture",
+          "cheeks": "Warm peach-coral blush placed across the high cheekbones and lightly swept over the bridge of the nose; prominent glassy highlighter on the upper cheekbones",
+          "lips": "High-shine glossy finish featuring a gradient strawberry-rose tint, concentrated at the inner center and blended softly toward diffused lip edges"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 462
+        },
+        "costUsd": 0.002739,
+        "latencyMs": 7352
+      },
+      "analyzedAt": "2026-09-22T07:43:59.496Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0HXlJOgX_01.jpg",
+      "imageSha256": "7fe5c1c77022770d47ac1db15b07e99fd489ad01742c4b7b00ca87fbb723227c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with medium coverage, light radiant sheen on the forehead, bridge of the nose, and chin.",
+          "eyes": "Soft peach-nude wash over the lids and lower lash line with a highlighted under-eye area (aegyo-sal); thin, precise black winged eyeliner extending slightly downward at the outer corners; well-defined, separated upper and lower lashes coated with black mascara.",
+          "brows": "Natural, softly filled straight-arched brows in dark brown with diffused inner corners.",
+          "cheeks": "Subtle warm peach blush blended over the apples and high cheekbones; soft contouring along the nose bridge; delicate highlighter on the tip of the nose.",
+          "lips": "Glossy rose-coral tint with higher color saturation concentrated at the center of the lips, creating a soft gradient effect."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 514
+        },
+        "costUsd": 0.002934,
+        "latencyMs": 7409
+      },
+      "analyzedAt": "2026-09-22T07:44:07.058Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0LVkJMtT_01.jpg",
+      "imageSha256": "c3945ce3c29833d8ae1585e0d85160d41a26bf3031870ad1db4c182c9bc5eaed",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous, dewy finish with high coverage and bright, reflective highlights on high points of the face",
+          "eyes": "Champagne-peach shimmering eyeshadow across upper lids; pronounced shimmering highlight on the aegyo-sal with soft under-eye shadow contouring; precise thin black/dark brown upper liner extending into a subtle downward-to-horizontal wing; curled, defined, separated top and lower lashes with mascara",
+          "brows": "Softly arched, straight-style medium-width brows filled in with a warm light brown tone",
+          "cheeks": "Soft peachy-pink blush concentrated on the apples and blended high toward the temples; subtle nose contour; radiant liquid or cream highlighter on the cheekbones and nose bridge",
+          "lips": "Glossy finish with a cherry-red to coral gradient; higher color saturation toward the center with softly diffused edges"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 446
+        },
+        "costUsd": 0.002679,
+        "latencyMs": 5380
+      },
+      "analyzedAt": "2026-09-22T07:44:05.550Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0M71p8eE_01.jpg",
+      "imageSha256": "3490edf1429db59616503bd14dfaf71a48ed7062735d4b008bcfeb0c8c6e141b",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin-matte finish with high coverage, soft-focus blurring, subtle nose contouring, and luminous highlight along the nose bridge and tip.",
+          "eyes": "Warm peachy-tan base shadow with shimmer on the upper lid and inner corners; prominently defined aegyo sal highlighted with champagne shimmer and soft contour underneath; tight black upper eyeliner with a delicate extended flick; prominent, separated spiky upper false eyelashes and coated lower lashes.",
+          "brows": "Soft straight brow shape with a subtle arch, filled in with a warm light brown tone with a soft, diffused inner head.",
+          "cheeks": "Warm peachy-pink blush placed softly across the center of the apples of the cheeks and blending outwards; gentle glow on the cheekbones.",
+          "lips": "Warm coral-rose lip with a glossy, high-shine finish, applied with a slight blurred outer edge and concentrated color in the center."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 507
+        },
+        "costUsd": 0.002908,
+        "latencyMs": 6510
+      },
+      "analyzedAt": "2026-09-22T07:44:08.706Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0MEuJ4oE_01.jpg",
+      "imageSha256": "b2cde2ca673932b6a32b74736ec9163a9effadf3c5d06004d481889bd3f82090",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Radiant, dewy-finish foundation with even, medium coverage, blurred texture, and luminous complexion.",
+          "eyes": "Soft warm peach and neutral brown wash across the eyelids and lower lashline; luminous champagne shimmer accentuating the aegyo-sal; thin dark brown liner hugging the lashline with a slight soft wing; separated, curled wispy upper lashes and finely coated lower lashes.",
+          "brows": "Warm light-brown, straight-arched brows softly filled with powder for a diffuse, gentle look.",
+          "cheeks": "Soft peachy-pink blush swept across the apples toward the temples; subtle nose contouring; pinpoint liquid or powder highlighter on the nose tip, bridge, and high cheekbones.",
+          "lips": "Glossy warm rose-nude lip with a slightly deeper center gradient, soft diffused edges, and high-shine glass-like finish."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 408
+        },
+        "costUsd": 0.002537,
+        "latencyMs": 6192
+      },
+      "analyzedAt": "2026-09-22T07:44:11.918Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0OoQJcZQ_01.jpg",
+      "imageSha256": "62f73ed6990e1ad1ae365f5bf658d524740186c205081902ba4fd379e0c19f45",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy, radiant finish with high-coverage foundation, subtle contouring, and luminous glow on high points",
+          "eyes": "Soft peachy-coral eyeshadow with fine shimmer across the lid and aegyo-sal; thin, subtle brown eyeliner extended slightly past the outer corner; curled lashes with lengthening mascara",
+          "brows": "Straight, soft-arched shape filled in with light warm brown powder with a diffused front",
+          "cheeks": "Soft peachy-pink blush on the upper cheek apples, blended seamlessly with reflective pearl highlighter on the cheekbones",
+          "lips": "Glossy coral-pink lip with a soft, blurred vermilion border and slightly concentrated color at the center"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 398
+        },
+        "costUsd": 0.002499,
+        "latencyMs": 4765
+      },
+      "analyzedAt": "2026-09-22T07:44:12.021Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0RR6pFLG_01.jpg",
+      "imageSha256": "1643e683b5b611038b67c1ce71338b7f1b5fa8bcba14bb9cb841b4de776d2415",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, dewy finish with seamless coverage, highlighted high points along the nose bridge and center of forehead.",
+          "eyes": "Warm peachy-nude eyeshadow washed over eyelids, subtle terracotta shading along the outer corner and aegyo-sal crease, pearlescent shimmer on the under-eye area. Fine brown eyeliner extending outward into a soft wing, curled and separated upper spiky false lashes, and defined lower lashes.",
+          "brows": "Soft straight brow shape filled with warm brown powder, natural soft texture and diffused edges.",
+          "cheeks": "Peach-pink blush diffused across the apples and upper cheekbones blending toward the under-eyes; subtle contouring along the nose bridge and tip with pinpoint highlight.",
+          "lips": "Glossy gradient/ombre lip featuring a deeper berry-red stain concentrated at the center and softly blurred outwards, finished with a high-shine clear gloss."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 430
+        },
+        "costUsd": 0.002619,
+        "latencyMs": 5577
+      },
+      "analyzedAt": "2026-09-22T07:44:14.409Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0SXNJeum_01.jpg",
+      "imageSha256": "c4e3c785a366f36c42a1e4655467a1027f78bc72f36fef7e62734eba0844ecb8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous, dewy finish with medium coverage, highlighting high points of the face with radiant glow",
+          "eyes": "Soft peachy-champagne wash across eyelids, fine shimmer highlighting the aegyo sal under-eye area, thin brown-black tightline extending into a subtle downturned flick, curled and defined upper lashes with light mascara on lower lashes",
+          "brows": "Soft straight brow shape filled with warm taupe-brown powder, lightly structured with feathered front",
+          "cheeks": "Warm peach-pink blush swept across the apples toward the temples, radiant highlighter on the cheekbones, bridge, and tip of the nose",
+          "lips": "High-shine glossy finish in a warm reddish-coral shade, applied with a soft gradient effect concentrated toward the inner lip"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 417
+        },
+        "costUsd": 0.00257,
+        "latencyMs": 6758
+      },
+      "analyzedAt": "2026-09-22T07:44:18.887Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0bXBpQKa_01.jpg",
+      "imageSha256": "7dff6834b1a919abc5cbd9fb35dc21297cbd82d76aa3c699b19626a15c55077f",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy glass-skin finish with medium coverage and prominent radiant high-shine on the nose bridge and high points of the face",
+          "eyes": "Soft peachy-apricot wash across upper lid and under-eye area, subtle micro-shimmer on lids, fine brown tightline along the upper lash line, and defined curled individual clump-style false lashes with light mascara on lower lashes",
+          "brows": "Soft, straight shape filled with light warm-brown powder",
+          "cheeks": "Diffused soft peach blush applied across the center of the cheeks, layered with high-shine reflective liquid highlighter on cheekbones and nose tip",
+          "lips": "High-shine glossy finish with a gradient ombre effect, featuring a deep rose-pink tint concentrated at the center fading into a diffused muted edge with softly blurred borders"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 547
+        },
+        "costUsd": 0.003058,
+        "latencyMs": 8067
+      },
+      "analyzedAt": "2026-09-22T07:44:20.249Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0ejmpaq7_01.jpg",
+      "imageSha256": "fd2ff0fff7ad6bb48fd38622ef8956dfcba35d04496f45c28e256a230ebe72fa",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous dewy finish with medium-to-full coverage, soft contouring along the nose bridge, and high-shine radiant finish on high planes of the face",
+          "eyes": "Soft peach and warm beige wash over the upper lids and lower lash line; aegyo sal accentuated with light champagne shimmer; thin tightlined black eyeliner; curled, defined, spiky separated mascara on both upper and lower lashes",
+          "brows": "Soft, straight brow shape filled in with light warm-brown powder for a diffused, natural finish",
+          "cheeks": "Peachy-pink blush swept high on the apples of the cheeks toward the temples; targeted dewy highlighter on the cheekbones and tip of the nose",
+          "lips": "High-shine glossy berry-rose tint applied with a gradient effect, deeper at the inner center and softly diffused toward the lip borders"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 465
+        },
+        "costUsd": 0.00275,
+        "latencyMs": 9668
+      },
+      "analyzedAt": "2026-09-22T07:44:24.246Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcu0fbGpmrm_01.jpg",
+      "imageSha256": "53907fa13014f4dedf4fb76dbb0715c9692799521e3e65c5126f8752ab8583b6",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy and radiant finish with smooth, light-to-medium coverage and high-point sheen.",
+          "eyes": "Soft peachy-apricot eyeshadow across the upper eyelid and lower lash line, highlighting the aegyo-sal; fine brown tightline and thin upper liner; curled, separated spiky upper lashes and clearly defined lower lashes coated with black mascara.",
+          "brows": "Soft, natural straight shape filled with light brown powder for a feathered, diffused finish.",
+          "cheeks": "Warm peachy-coral blush focused high on the apples of the cheeks under the eyes, complemented by dewy liquid highlighter on the bridge and tip of the nose and cheek tops.",
+          "lips": "Glossy coral-pink lip with high-shine lacquer finish, soft diffused edges, and concentrated color toward the center."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 397
+        },
+        "costUsd": 0.002495,
+        "latencyMs": 5351
+      },
+      "analyzedAt": "2026-09-22T07:44:24.386Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcuz-A8pGcB_01.jpg",
+      "imageSha256": "71eb6640023eb705dce45819e900218dabe205b109b337258203f72de4a6e04c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with medium coverage, illuminated high points, and brightened under-eye area.",
+          "eyes": "Soft champagne-peach shimmer on lids, defined and highlighted aegyo sal with fine pearl shimmer, soft brown shading along the outer lower corner. Fine black liner tightlined with a delicate, straight outer flick. Well-curled, separated upper lashes with black mascara and lightly defined lower lashes.",
+          "brows": "Soft, relatively straight shape with a subtle arch, filled with warm medium-brown powder for a soft-focus finish.",
+          "cheeks": "Soft peachy-pink blush blended onto the apples and high cheekbones; subtle glowing highlighter on the cheekbones and bridge of the nose.",
+          "lips": "Glossy gradient lip with a warm coral-rose tint concentrated toward the center and diffused toward the natural lip contour, topped with a high-shine finish."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 455
+        },
+        "costUsd": 0.002713,
+        "latencyMs": 6201
+      },
+      "analyzedAt": "2026-09-22T07:44:26.641Z"
+    },
+    {
+      "file": "barcelona_nakasu_tori/20260901_Dcuz8moJV2W_01.jpg",
+      "imageSha256": "9c77c0878e9c7edc9e0baa396a9ea16f7f2063c3087554e4a2c33354a1918354",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy, glass-skin finish with medium coverage and high-shine reflection on the high points of the face",
+          "eyes": "Soft peach and neutral brown wash across the upper lid and lower lash line; delicate shimmer on the aegyo sal; fine dark brown upper liner with a subtle soft wing; distinctly separated, curled, and elongated individual upper and lower lashes",
+          "brows": "Softly filled straight-to-slightly-arched brows in a light warm-brown shade with a diffuse finish",
+          "cheeks": "Soft peachy-pink blush blended onto the apples of the cheeks; glossy, reflective liquid or cream highlighter on the cheekbones and nose bridge",
+          "lips": "Glossy coral-pink lip with a subtle gradient effect, concentrated at the center with a hydrated, glassy finish"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 394
+        },
+        "costUsd": 0.002484,
+        "latencyMs": 5019
+      },
+      "analyzedAt": "2026-09-22T07:44:29.434Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20251226_DSvV27bEyG3_01.jpg",
+      "imageSha256": "f58b4ad6703491468a3fabff76b084153074bceb8470897ba0e8743b7827f7a5",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with even light-to-medium coverage and soft-focus blurring.",
+          "eyes": "Soft peachy-brown transition shadow across the eyelids and lower lash line, prominent aegyo-sal contour and shimmer highlight, thin black liquid winged eyeliner with a gentle upward flick, and lengthened, curled upper lashes with mascara.",
+          "brows": "Softly filled straight-to-gently-arched brows in a natural dark brown shade with a powdered finish.",
+          "cheeks": "Soft peachy-pink blush applied to the apples of the cheeks blending outward, paired with subtle nose tip and cheekbone highlight.",
+          "lips": "Glossy ombre lip with a warm reddish-pink gradient concentrated toward the inner center, fading to a softer pink at the perimeter."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 429
+        },
+        "costUsd": 0.002615,
+        "latencyMs": 6077
+      },
+      "analyzedAt": "2026-09-22T07:44:30.548Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20251226_DSvV27uE4vU_02.jpg",
+      "imageSha256": "34b7ef2c4cba4e1e5550399044a8442587aea0c7ed47a513b3c9e29dfb1e1cb9",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with light-to-medium coverage, soft-focus blurring, and subtle radiant glow on high points.",
+          "eyes": "Soft neutral peach-beige eyeshadow across the lid, defined black upper eyeliner with a delicate flick, wispy elongated upper lashes, and subtle shimmer highlighting the aegyo sal.",
+          "brows": "Soft straight brow shape with natural fullness, filled with a charcoal-brown powder finish.",
+          "cheeks": "Soft peachy-pink blush blended over the apples of the cheeks and outer temples, paired with delicate bridge-of-nose highlighting.",
+          "lips": "Glossy warm pink tint applied with a soft gradient effect, deeper toward the center of the mouth."
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 406
+        },
+        "costUsd": 0.002529,
+        "latencyMs": 5215
+      },
+      "analyzedAt": "2026-09-22T07:44:31.964Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260222_DVD1AZEkbsU_01.jpg",
+      "imageSha256": "b831003759d59d0727f0ccecd21631b51e1c3860a1d100212099feeec2c40165",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even complexion with a natural luminous finish.",
+          "eyes": "Subtle neutral shadow, defined black upper eyeliner with a slight wing, and lengthened lashes.",
+          "brows": "Straight, soft-filled natural brown brows.",
+          "cheeks": "Soft pink blush applied subtly to the apples of the cheeks.",
+          "lips": "Soft pink-coral lip color with a high-shine glossy finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 379
+        },
+        "costUsd": 0.002409,
+        "latencyMs": 6460
+      },
+      "analyzedAt": "2026-09-22T07:44:35.994Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260222_DVD1BSikdF0_02.jpg",
+      "imageSha256": "7e4435a5375930123ad927584af3131f93be81245ad06b855ee9670921649e6b",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with even coverage",
+          "eyes": "Subtle neutral eyeshadow with soft dark winged eyeliner and mascara on upper lashes",
+          "brows": "Naturally defined, straight dark brown brows",
+          "cheeks": "Soft pink-coral blush applied to the apples of the cheeks with subtle highlighting",
+          "lips": "Glossy coral-pink tint with a soft-gradient finish"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 431
+        },
+        "costUsd": 0.002604,
+        "latencyMs": 6195
+      },
+      "analyzedAt": "2026-09-22T07:44:36.832Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260423_DXeHq2BEb7a_01.jpg",
+      "imageSha256": "954ef774e2af7fd5ce68b11c8b69ab16454add2de667e8f23b51bfef8a69d472",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with radiant high points and brightened under-eye area",
+          "eyes": "Champagne and warm bronze shimmer across the mobile lids and aegyo sal; fine black winged eyeliner with a gentle outward extension; dramatic, separated spiky false lashes on upper lash line with subtle mascara on lower lashes; shaded aegyo-sal contour line below the lower lash line",
+          "brows": "Softly arched to straight brows, filled in with a dark brown powder with soft, diffused edges",
+          "cheeks": "Warm peachy-coral blush blended softly across the center of the cheeks toward the temples; subtle contouring along the nose bridge with a defined highlight at the tip",
+          "lips": "Warm terracotta-red lip color with a satin-gloss finish, concentrated more deeply at the center and softly diffused toward the edges"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 892
+        },
+        "costUsd": 0.004333,
+        "latencyMs": 8039
+      },
+      "analyzedAt": "2026-09-22T07:44:40.087Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260508_DYEuk1ckS0f_01.jpg",
+      "imageSha256": "8acf18ff8207cfc6f594fc0e3c7a4b75ee212ee24f7aa8d390447d8bfe96b966",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Poreless, heavily smoothed matte finish with subtle nose contouring.",
+          "eyes": "Soft neutral wash with defined aegyo-sal, fine black eyeliner, and separated doll-like lashes.",
+          "brows": "Softly filled, gently arched medium-brown brows.",
+          "cheeks": "Subtle muted pink blush placed high on the apples.",
+          "lips": "Muted reddish-rose satin lip color with softly blurred edges."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 1763
+        },
+        "costUsd": 0.007599,
+        "latencyMs": 9842
+      },
+      "analyzedAt": "2026-09-22T07:44:45.921Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260629_DaK8MTkTsaK_01.jpg",
+      "imageSha256": "b9d339622711c018677de37656a8ca5c4c0fbc031410d8ff9935b604350ff638",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with a blurring, dewy effect and high-coverage porcelain appearance",
+          "eyes": "Subtle neutral-toned wash on lids, prominent black winged eyeliner with a fine flick, defined volumized upper lashes, and soft shimmer accentuating the under-eye aegyo-sal area",
+          "brows": "Softly filled, straight dark brown brows with a natural arch and feathered texture",
+          "cheeks": "Soft peachy-pink blush applied lightly to the apples of the cheeks with subtle dewy highlighter on the cheekbones",
+          "lips": "High-shine coral-pink gradient lip with soft blurred edges and deeper color saturation toward the center"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 455
+        },
+        "costUsd": 0.002694,
+        "latencyMs": 10102
+      },
+      "analyzedAt": "2026-09-22T07:44:47.064Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260708_DaiPYRqTqlo_01.jpg",
+      "imageSha256": "e9bc356d376dee1932b956391802531c2069a0d206102e384897366b7b6a8ed8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Dewy, luminous finish with even, medium-to-full coverage, brightened center of the face, and subtle setting powder on the T-zone.",
+          "eyes": "Soft peach and champagne shimmer eyeshadow across the lids, highlighted lower lash line creating an aegyo sal effect with fine glitter, fine black winged eyeliner with a gentle downward flick, and wispy, defined individual-style upper strip lashes with lightly coated lower lashes.",
+          "brows": "Soft straight-to-slightly-arched shape filled in with medium brown tone, featuring a diffused, natural front.",
+          "cheeks": "Warm peachy-pink blush placed high on the apples and blended toward the temples; subtle radiant highlighter on the cheekbones, bridge, and tip of the nose.",
+          "lips": "Glossy coral-red lip color with a glass-like finish and subtle gradient effect concentrated toward the inner center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 496
+        },
+        "costUsd": 0.002848,
+        "latencyMs": 6973
+      },
+      "analyzedAt": "2026-09-22T07:44:47.208Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260714_DaxJzqFRo8W_01.jpg",
+      "imageSha256": "ef7acfdc041f9066d7867c6ad519a66c05c9ddf7fdeda6c8ab5bc64d21953e33",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant semi-matte finish with even full coverage, softly contoured bridge of the nose and subtle highlight along the nose tip.",
+          "eyes": "Champagne and soft peach shimmer wash over the lids, prominent aegyo sal highlighted with luminous pearl and soft brown shadow contouring underneath; fine black liquid liner extending slightly outward into a clean, gentle wing; curled upper lashes with defined, separated falsies.",
+          "brows": "Soft straight style with a gentle taper at the tail, filled in with a warm medium-brown powder with diffused inner edges.",
+          "cheeks": "Soft peachy-pink blush placed across the center of the apples of the cheeks blending upwards towards the temples; light natural glow on the high points of the cheekbones.",
+          "lips": "Warm rose-coral lip color applied with a subtle inner-to-outer gradient, finished with a high-shine glossy coat."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 508
+        },
+        "costUsd": 0.002893,
+        "latencyMs": 5828
+      },
+      "analyzedAt": "2026-09-22T07:44:51.895Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260819_DcOUs5DTl8W_01.jpg",
+      "imageSha256": "aaa8bf3477d2a96d8c242b1fb1d1143b5a9615f105a00ec4201234283bd2d435",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with medium coverage, illuminated high points, and brightened under-eye area.",
+          "eyes": "Soft neutral beige and warm brown eyeshadow washed across the lids, pronounced pearlescent shimmer emphasizing the aegyo-sal/under-eye puff, thin black upper lashline eyeliner with a soft outward flick, and defined, curled lashes with mascara.",
+          "brows": "Softly filled, straight shape in a medium brown shade, largely obscured by fringe.",
+          "cheeks": "Subtle wash of warm peach blush placed high on the apples of the cheeks with subtle highlight along the nose bridge and tip.",
+          "lips": "Warm terracotta-rose lipstick with a soft satin finish, defined Cupid's bow, and smooth outer edges."
+        },
+        "usage": {
+          "inputTokens": 1333,
+          "outputTokens": 440
+        },
+        "costUsd": 0.00265,
+        "latencyMs": 7323
+      },
+      "analyzedAt": "2026-09-22T07:44:54.510Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260907_Dc-3lwgTLfE_01.jpg",
+      "imageSha256": "1e420bfcbbe9950da27645b3ebcad7097717bb5b622e0e01759d1a0bf46e1c64",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage base with a soft luminous finish, lightly powdered center, and subtle highlight on the nose tip and bridge.",
+          "eyes": "Soft peachy-coral eyeshadow washed across the lids; pronounced aegyo sal accentuated with light champagne shimmer and soft contour underneath; thin black winged eyeliner following the lash line; curled, defined individual-style upper lashes with mascara; light brown decorative contact lenses.",
+          "brows": "Softly filled, straight brows in a medium ash-brown shade, partially covered by fringe.",
+          "cheeks": "Warm peach-pink blush applied high on the apples of the cheeks and blended upward toward the temples, creating a youthful flush.",
+          "lips": "Glossy gradient lip with a muted coral-rose hue, concentrated in the center and softly diffused toward the borders."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 485
+        },
+        "costUsd": 0.002807,
+        "latencyMs": 5856
+      },
+      "analyzedAt": "2026-09-22T07:44:53.166Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260908_DdBPT32zDwU_01.jpg",
+      "imageSha256": "833f2f42a3e3b63ed6dadad83eb733ae2b90ce5675428bb66336980c83d32059",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage base with a semi-matte to satin finish, subtle highlighting on the forehead, nose bridge, and chin.",
+          "eyes": "Soft peachy-pink wash on the upper lids and lower lash line, with fine shimmer accentuating the aegyo sal; thin dark brown/black liner extending outward with a slight downward-angled wing; curled upper lashes with separated mascara and light mascara on lower lashes.",
+          "brows": "Soft, straight brows with minimal arch, filled in with a warm light brown tone, largely softened under the bangs.",
+          "cheeks": "Prominent warm peachy-pink blush focused high on the apples of the cheeks and blending outward; soft nose contour with pinpoint highlight on the tip.",
+          "lips": "Muted rosy-pink gradient lip with soft, diffused edges and a semi-matte, velvety finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 523
+        },
+        "costUsd": 0.002949,
+        "latencyMs": 6071
+      },
+      "analyzedAt": "2026-09-22T07:44:58.111Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260910_DdGv49nT4E4_01.jpg",
+      "imageSha256": "3847574987752089596115b22421129d302ccc427190fa7afdcefe6d8a1e444e",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte to satin finish with even coverage and soft brightening in the center of the face",
+          "eyes": "Soft peachy-pink eyeshadow on lids and lower lash line; prominent aegyo sal highlighted with champagne shimmer and soft contour underneath; thin black upper eyeliner with a gentle extended wing; lengthened, curled, clump-defined upper lashes and light lower lash mascara",
+          "brows": "Soft, straight brow filled with a light brown pencil or powder",
+          "cheeks": "Warm pink blush concentrated high on the apples of the cheeks and blended horizontally; subtle highlight on the nose tip",
+          "lips": "Velvet rose-pink lip with a soft gradient effect, slightly deeper toward the inner center"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 494
+        },
+        "costUsd": 0.00284,
+        "latencyMs": 7477
+      },
+      "analyzedAt": "2026-09-22T07:45:00.788Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260911_DdJRugPTtJ4_01.jpg",
+      "imageSha256": "9f7645308c49577a642f66b68c4abfbda241bfb1d86db16ad2e62910e4cb7e6c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin-to-dewy finish with high coverage, balanced tone, and subtle highlighting on the center of the forehead and nose bridge.",
+          "eyes": "Soft peachy-brown matte eyeshadow blended across the upper lid; pronounced aegyo-sal highlighted with shimmering champagne pigment and soft shadow underneath; thin black eyeliner along the upper lash line ending in a slightly extended, delicate flick; curled and separated upper lashes with lengthening mascara.",
+          "brows": "Softly filled, straight to gently arched brows in a medium warm brown shade with feathered texture at the front.",
+          "cheeks": "Soft peachy-pink blush swept across the apples and high cheeks, paired with soft luminous highlighter on the cheekbones and nose tip.",
+          "lips": "Coral-rose lip color with a glossy finish and a soft, diffused gradient effect concentrated at the inner center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 481
+        },
+        "costUsd": 0.002792,
+        "latencyMs": 5906
+      },
+      "analyzedAt": "2026-09-22T07:45:00.563Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260912_DdLsxmIz9Dw_01.jpg",
+      "imageSha256": "6f5b54c1d3a196553f61586d06a663977a58a64f6d71bfb3d5d963ea321730e9",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned satin finish with subtle blurring and soft illumination on the high points of the face.",
+          "eyes": "Neutral peachy-brown base shadow swept across the mobile lids; pronounced aegyo-sal accented with a soft contour underneath and champagne shimmer highlight; thin black winged eyeliner extending slightly downward and outward; curled, separated lashes coated with black mascara on both top and lower lashes.",
+          "brows": "Straight, softly filled brows in a light brown-taupe tone with a soft rounded finish at the tails.",
+          "cheeks": "Rosy-peach blush applied predominantly across the apples of the cheeks and blending upward toward the under-eye; delicate pinpoint highlight on the tip of the nose.",
+          "lips": "Warm rose-coral lip color with a soft, satin-gloss finish and slightly blurred lip line contours."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 467
+        },
+        "costUsd": 0.002739,
+        "latencyMs": 6791
+      },
+      "analyzedAt": "2026-09-22T07:45:05.031Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260913_DdOqIBlzwTS_01.jpg",
+      "imageSha256": "283f012add9984d872a39f143831321722a65195e9f4bf1fe76aeb6eb5b7ce95",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage base with a radiant, porcelain finish; delicate highlight placed down the bridge and tip of the nose.",
+          "eyes": "Shimmery champagne-pink eyeshadow on lids; prominent highlighted aegyo-sal with soft brown contour underneath; fine black winged liner extending slightly outward; separated, curled upper lashes with mascara on the lower lash line.",
+          "brows": "Soft, straight-arched brows filled with a light taupe-brown shade.",
+          "cheeks": "Soft candy-pink blush applied high onto the upper apples of the cheeks beneath the eyes.",
+          "lips": "Rose-pink satin lip with a soft gradient effect, slightly deeper color toward the inner center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 491
+        },
+        "costUsd": 0.002829,
+        "latencyMs": 6110
+      },
+      "analyzedAt": "2026-09-22T07:45:06.811Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260914_DdQZvbgx_pV_01.jpg",
+      "imageSha256": "1f4f65140215d0166a38ad213c0674abd4cd4d76773284718bce8d645198a6c1",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with medium-to-full coverage, even porcelain tone, and soft contouring along the nose bridge",
+          "eyes": "Champagne and soft peach shimmer eyeshadow across the lids; pronounced aegyo-sal highlighted with shimmer on the lower lash line; thin black liquid eyeliner extending in a fine, slightly upturned wing; curled and separated fluttery upper lashes with lightly defined lower lashes",
+          "brows": "Softly arched, straight-style medium brown brows with a powdery, feathered finish",
+          "cheeks": "Warm peach-pink blush blended over the apples and high on the cheekbones; luminous highlighter on the cheekbones and nose tip",
+          "lips": "Glossy coral-rose lip color with a gradient effect, concentrated in the center and blended out to soft, glossy edges"
+        },
+        "usage": {
+          "inputTokens": 1342,
+          "outputTokens": 466
+        },
+        "costUsd": 0.002754,
+        "latencyMs": 7856
+      },
+      "analyzedAt": "2026-09-22T07:45:08.729Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260915_DdTuDRHTsxJ_01.jpg",
+      "imageSha256": "fed92b93ce4d06e52d9da5cb50b417576cc4a8925d058d90b4ac5bf7f4c1d7cb",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with medium coverage, evening out skin tone with a soft-focus blur effect.",
+          "eyes": "Warm peachy-brown eyeshadow applied across the upper lid and lower lash line; shimmering champagne highlight accentuating the under-eye aegyosal; thin black or dark brown liquid liner extending into a subtle outer wing; curled, separated upper lashes with black mascara, complemented by lightly defined lower lashes.",
+          "brows": "Soft, straight-arched light brown brows partially visible beneath bangs, filled with a powder finish.",
+          "cheeks": "Soft peachy-coral blush dusted over the apples and center of the cheeks; subtle contouring on the bridge and tip of the nose with a pinpoint highlight on the nose tip.",
+          "lips": "Warm rosewood/terracotta shade with a satin to soft-matte finish and softly diffused edges."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 517
+        },
+        "costUsd": 0.002927,
+        "latencyMs": 7141
+      },
+      "analyzedAt": "2026-09-22T07:45:12.315Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260916_DdXLOOyzXe3_01.jpg",
+      "imageSha256": "c3b79a1af009fec761feddc7401eca847c64f6ad2da24c8d923760684a67c699",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with medium coverage, high-coverage porcelain appearance, and subtle radiant highlighting along the center of the face.",
+          "eyes": "Soft neutral peach and light brown eyeshadow across the lid and crease; prominent aegyo-sal highlighted with pale shimmer and contoured underneath; delicate black upper eyeliner with a thin, slightly extended wing; curled and separated upper lashes coated with black mascara.",
+          "brows": "Softly filled, straight to gently arched brown brows with a powdery, natural finish.",
+          "cheeks": "Soft peachy-pink blush dusted across the high points of the apples; subtle contouring on the bridge and tip of the nose with a pinpoint highlight.",
+          "lips": "Warm rose-coral lip color with a softly diffused outer edge and a satin, blurred gradient finish."
+        },
+        "usage": {
+          "inputTokens": 1338,
+          "outputTokens": 465
+        },
+        "costUsd": 0.002747,
+        "latencyMs": 8640
+      },
+      "analyzedAt": "2026-09-22T07:45:15.609Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260918_DdbCbcHxHOX_01.jpg",
+      "imageSha256": "7585af3e5b49ba5ad1acdd8686ddd70a2ea18756137b26ff2c03abf31afad276",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with even medium coverage, soft diffused radiance on the high points of the face.",
+          "eyes": "Warm peachy-brown gradient eyeshadow on the upper lids, defined aegyo-sal highlighted with subtle shimmer and soft brown under-eye contour, delicate black winged eyeliner, separated doll-like upper false lashes, and lightly defined lower lashes.",
+          "brows": "Straight, softly filled brows in a natural dark brown shade with a diffuse, powdered texture.",
+          "cheeks": "Soft peachy-pink blush applied to the apples of the cheeks and blended outward; subtle nose tip contouring.",
+          "lips": "Warm coral-pink gradient lip with higher color saturation at the center, softly blurred outer perimeter, and a moist satin sheen."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 449
+        },
+        "costUsd": 0.002672,
+        "latencyMs": 9520
+      },
+      "analyzedAt": "2026-09-22T07:45:18.370Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260919_DdeK3jUTscy_01.jpg",
+      "imageSha256": "79a6876fb991703c0d845721da9504083bf009a5056ba757cca5e57008ecea94",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth porcelain matte to satin finish with high-coverage blurring effect, subtle highlighter applied to the tip and bridge of the nose.",
+          "eyes": "Soft peachy-neutral eyeshadow washed over upper lids, prominent aegyo sal enhancement with light shimmer and soft brown under-eye contouring, fine black tightline eyeliner with subtle outer flick, separated and lengthened upper and lower lashes with mascara.",
+          "brows": "Straight, softly filled light brown brows with a powdery, diffused texture.",
+          "cheeks": "Airbrushed pastel pink blush concentrated on the apples of the cheeks directly beneath the eyes, creating a doll-like flush.",
+          "lips": "Warm rose-pink gradient lip with soft blurred edges and a natural satin finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 382
+        },
+        "costUsd": 0.00242,
+        "latencyMs": 6938
+      },
+      "analyzedAt": "2026-09-22T07:45:19.396Z"
+    },
+    {
+      "file": "tori_nakasu_aina/20260920_DdgJopiR-bO_01.jpg",
+      "imageSha256": "d48db426d3e5e9f0684a58d7cef266f3c6a5ea272d0bbf70ff784b92d828ebc1",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, flawless satin-matte finish with even porcelain coverage and subtle skin blurring.",
+          "eyes": "Soft peachy-nude eyeshadow wash; prominent aegyosal highlighted with shimmer and underlined with soft shadow; thin black liquid eyeliner with a slightly downward extending wing; doll-like defined upper false eyelashes; mascara on lower lashes.",
+          "brows": "Straight, softly filled brows in a warm medium-brown shade with diffused inner heads.",
+          "cheeks": "Soft peachy-pink blush placed high on the apples of the cheeks; subtle contouring on the bridge of the nose and a distinct highlight at the tip.",
+          "lips": "Warm rose-coral gradient lip with a soft satin finish, diffused outer edges, and deeper pigment concentrated at the center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 491
+        },
+        "costUsd": 0.002829,
+        "latencyMs": 6811
+      },
+      "analyzedAt": "2026-09-22T07:45:22.498Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260312_DVxdZ9LEaQJ_01.jpg",
+      "imageSha256": "6263f5c9157ce27213f3c168443409d344b757a9cf0dab9210807b3a3a9727f8",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte skin finish with even tone.",
+          "eyes": "Subtle warm-toned shimmer eyeshadow, fine dark eyeliner along the upper lash line, and curled mascara on upper lashes.",
+          "brows": "Softly filled, light brown brows with a gentle natural arch.",
+          "cheeks": "Soft peachy-pink blush swept across the apples of the cheeks.",
+          "lips": "Glossy coral-pink lip color with a soft, blurred outline."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 298
+        },
+        "costUsd": 0.002105,
+        "latencyMs": 5590
+      },
+      "analyzedAt": "2026-09-22T07:45:24.031Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260625_DaAJIQ0xI0p_01.jpg",
+      "imageSha256": "5e7c9f600bfbb42b517e7da9816bfc8e2918989bd207fd3e7bacea828d07bd5d",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, flawless porcelain finish with semi-matte setting and subtle luminosity on the center of the face.",
+          "eyes": "Warm peach and neutral brown wash across the upper lid, prominent aegyo-sal with shimmering champagne highlight on the under-eye area, thin dark brown or black liquid eyeliner hugging the upper lash line with a fine downturned outer flick, curled and well-separated mascara-defined upper lashes, and subtly defined lower lashes.",
+          "brows": "Straight, softly filled light brown brows with a soft arch and natural texture.",
+          "cheeks": "Soft peachy-pink blush placed high on the apples of the cheeks directly under the eyes, blending outwards, with delicate highlighting along the nose bridge.",
+          "lips": "Rose-berry gradient lip with a soft satin finish, deeper concentration of color in the center and blurred edges."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 514
+        },
+        "costUsd": 0.002915,
+        "latencyMs": 6172
+      },
+      "analyzedAt": "2026-09-22T07:45:25.689Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260626_DaCXRGlx4mO_01.jpg",
+      "imageSha256": "1dbb6c7c3f9682dd0559d403bdf03092bfa23bfeaa6133d769647b9bca26f29e",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte to satin finish with even coverage and soft-focus blurring.",
+          "eyes": "Champagne and soft peach shimmer eyeshadow across the lids; prominent aegyo-sal highlighted with shimmer and defined with subtle lower shadow; delicate black or dark brown upper eyeliner extending into a soft outer flick; defined, doll-like curled upper lashes in separated clusters and subtly coated lower lashes.",
+          "brows": "Softly filled straight-to-slightly-arched brows in a light warm brown tone.",
+          "cheeks": "Diffused rose-pink blush placed high on the apples of the cheeks and blending outward; subtle highlight on the nose tip.",
+          "lips": "Glossy coral-pink tint with a high-shine finish and subtle inner-lip gradient concentration."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 418
+        },
+        "costUsd": 0.002555,
+        "latencyMs": 7817
+      },
+      "analyzedAt": "2026-09-22T07:45:30.440Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260701_DaKGqFNRFF8_01.jpg",
+      "imageSha256": "f4baba51e4d8eb6d8f338b762b7ef07daf3b288d29a4aaadc864456a7034e994",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous, high-coverage dewy finish with soft brightening under the eyes and along the bridge of the nose.",
+          "eyes": "Soft peach and champagne shimmer eyeshadow across the mobile lid and lower lash line to accentuate the aegyo-sal; fine black liquid eyeliner with a precise subtle flick extending outward; clump-separated, doll-style lengthened upper and lower lashes with black mascara.",
+          "brows": "Softly defined, arched brows filled with light-to-medium warm brown powder for a natural, diffused look.",
+          "cheeks": "Vibrant peachy-pink blush concentrated high on the apples and swept outward toward the temples, paired with a wet-look pearl highlight on the cheekbone peaks and tip of the nose.",
+          "lips": "Coral-pink lip with a glossy finish, applied with a soft gradient effect concentrated toward the inner center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 553
+        },
+        "costUsd": 0.003062,
+        "latencyMs": 8315
+      },
+      "analyzedAt": "2026-09-22T07:45:32.471Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260714_DawvBCcR2eu_01.jpg",
+      "imageSha256": "3aa45285f837e0909b8027d10495ddd5d750d58251a17609ad20cbbaeaaf01b8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte to luminous finish with medium coverage and high-point radiance.",
+          "eyes": "Soft peachy-nude eyeshadow on lids with subtle shimmer; defined aegyo sal highlighted with champagne glitter and soft under-eye contouring; fine brown-black winged liquid eyeliner extending outward; lifted, defined upper lashes with mascara and individual lash clusters.",
+          "brows": "Straight, softly arched brows filled in with a warm light-brown powder and pencil.",
+          "cheeks": "Soft peachy-pink blush placed over the apples and high cheekbones; subtle highlight on the nose tip and cheekbones.",
+          "lips": "Satin to glossy muted rose-pink lip color with soft edges and subtle inner-lip depth."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 448
+        },
+        "costUsd": 0.002668,
+        "latencyMs": 7389
+      },
+      "analyzedAt": "2026-09-22T07:45:33.221Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260723_DbIBpkiR38w_01.jpg",
+      "imageSha256": "b58eba451527532e4483e83781e540a3390b821732f221cf93ff203499421240",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with medium-to-full coverage, soft-focus blurring, and localized powdering.",
+          "eyes": "Soft peachy-beige and neutral taupe wash across the eyelids; luminous champagne-pearl shimmer emphasizing the aegyo-sal; thin black liquid eyeliner extending into a subtle, slightly downward puppy-liner wing; well-defined, separated individual upper false lashes and delicate lower mascara.",
+          "brows": "Softly filled, light chestnut-brown straight brows with feathered texture.",
+          "cheeks": "Sheer peachy-pink blush diffused across the center of the apples of the cheeks; subtle pearl highlight on the tip and bridge of the nose.",
+          "lips": "Glossy coral-peach lip tint with high shine, concentrated color at the center creating a soft gradient effect."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 652
+        },
+        "costUsd": 0.003433,
+        "latencyMs": 7744
+      },
+      "analyzedAt": "2026-09-22T07:45:38.339Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260727_DbSt5ILxA4-_01.jpg",
+      "imageSha256": "b8f5c3954ac48462c8a50baf6923cbc055a3421541b4a9756e29d3541cde9edd",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage porcelain base with a semi-matte, illuminated finish and brightened center of the face.",
+          "eyes": "Soft peachy-pink wash across the upper lid; distinct aegyo-sal highlighted with pearlescent champagne shimmer and soft brown under-shadow; thin dark brown upper eyeliner extending outward into a soft, slightly downturned wing; doll-like defined clustered upper lashes and separated lower lashes.",
+          "brows": "Soft, straight Korean-style brows filled with a warm light-brown powder, lightly defined without sharp edges.",
+          "cheeks": "Delicate baby-pink blush concentrated high on the upper cheekbones blending softly into the under-eye area; subtle luminous highlight on the bridge and tip of the nose.",
+          "lips": "Rosy-pink lip tint with soft, blurred edges, a slight satin sheen, and enhanced concentration of pigment towards the center."
+        },
+        "usage": {
+          "inputTokens": 1326,
+          "outputTokens": 451
+        },
+        "costUsd": 0.002686,
+        "latencyMs": 8483
+      },
+      "analyzedAt": "2026-09-22T07:45:41.032Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260729_DbWz1oyyd07_01.jpg",
+      "imageSha256": "b5db999fc3b450e4246cf5a2b40f9e1cac4b40c5892c64535ac62329cd719023",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with even medium coverage and subtle brightening through the center of the face.",
+          "eyes": "Soft peachy-coral eyeshadow on upper lids; pronounced aegyo-sal contour with shimmering champagne highlight beneath the lower lash line; delicate black eyeliner with a soft downturned wing; separated, doll-like upper and lower lashes with mascara.",
+          "brows": "Softly arched, medium-light warm brown brows filled in with a diffused powder texture.",
+          "cheeks": "Warm pinkish-peach blush placed high on the apples and directly under the eyes, blending softly outward; subtle pearl highlight on the tip and bridge of the nose.",
+          "lips": "Satin-finish rosy pink lip with a soft gradient effect, more concentrated in the center and diffused toward the outer lip line."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 387
+        },
+        "costUsd": 0.002439,
+        "latencyMs": 5415
+      },
+      "analyzedAt": "2026-09-22T07:45:38.730Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260801_Dbeo1VBqYy5_01.jpg",
+      "imageSha256": "8e72b65aa66cbb4f24fbc6cf6ffd9f1be6b27e268dd6a9f5373f9ff747d06fbe",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, flawless satin-matte finish with even, medium coverage and soft-focus blurring.",
+          "eyes": "Neutral brown and champagne eyeshadow softly blended across lids; prominent highlighted aegyo-sal with subtle contouring beneath. Crisp black liquid eyeliner along upper lash line extending into a precise, slight upward wing. Defined, curled upper and lower lashes with lengthening mascara.",
+          "brows": "Straight, softly filled brows in a light warm-brown shade with gentle feathering.",
+          "cheeks": "Soft peachy-rose blush diffused lightly over the apples of the cheeks blending upwards; subtle highlight on the bridge and tip of the nose.",
+          "lips": "Muted dusty rose to coral-pink lip color with a soft-blurred satin finish and subtle gradient concentration toward the center."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 463
+        },
+        "costUsd": 0.002724,
+        "latencyMs": 7828
+      },
+      "analyzedAt": "2026-09-22T07:45:46.270Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260801_DbhCrBeyMmA_01.jpg",
+      "imageSha256": "6fd62ab306d76deb961f1c653d5b1919f0dfa4c85f9d99fac6b0ddcdd60428e7",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, flawless porcelain finish with high coverage and a soft-matte texture",
+          "eyes": "Soft peachy-brown transition shadow across the eyelids; accentuated aegyo-sal highlighted with shimmer on the lower lid; thin dark liner along the upper lash line with a fine, subtly downturned wing; prominent separated individual false lashes on top and defined lower lashes",
+          "brows": "Light warm brown, softly filled straight-brow shape with delicate, gently tapered tails",
+          "cheeks": "Coral-pink blush applied softly on the apples of the cheeks and swept outward; subtle pinpoint highlight on the nose tip",
+          "lips": "Coral-rose gradient lip with soft blurred borders and deeper pigmentation concentrated in the center, finished with a velvet-matte texture"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 604
+        },
+        "costUsd": 0.003281,
+        "latencyMs": 8424
+      },
+      "analyzedAt": "2026-09-22T07:45:47.255Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260807_Dbu0DRPRW1V_01.jpg",
+      "imageSha256": "a4de38805534f9bc5a6a6a1dff643714f71ed70f60dff37724d24ef886d2d7de",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte finish with light-to-medium coverage and soft natural glow on the high points of the face",
+          "eyes": "Subtle neutral-pink and soft brown eyeshadow contouring the lids, lower lashline emphasis with highlighted aegyo-sal, fine black eyeliner along the upper lash line ending in a soft wing, and curled, separated black mascara",
+          "brows": "Straight, softly filled brows in a natural dark brown tone with a diffused finish",
+          "cheeks": "Soft wash of peach-pink blush centered on the apples of the cheeks with subtle highlighter on the nose bridge and cheekbones",
+          "lips": "Berry-rose lip tint with a glossy, hydrated finish and slightly softened perimeter"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 433
+        },
+        "costUsd": 0.00264,
+        "latencyMs": 5278
+      },
+      "analyzedAt": "2026-09-22T07:45:46.412Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260811_Db49hybRXZh_01.jpg",
+      "imageSha256": "7006ada01e292e257b363f7dae3697fd6bb69679c5c4b75a241b21dfac4db4db",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with even coverage and a luminous center",
+          "eyes": "Subtle neutral eyeshadow wash with soft black upper eyeliner extending into a gentle wing, accompanied by defined upper lashes and subtle aegyo-sal enhancement",
+          "brows": "Softly filled straight brown brows with a natural arch",
+          "cheeks": "Soft peachy-pink blush applied to the apples of the cheeks",
+          "lips": "Glossy coral-pink lip tint with soft borders and a lustrous finish"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 621
+        },
+        "costUsd": 0.003317,
+        "latencyMs": 7965
+      },
+      "analyzedAt": "2026-09-22T07:45:54.354Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260813_Db9j7h5qzOi_01.jpg",
+      "imageSha256": "bd8573c0c713799758039f1306945e0cd91ee0953ec07bd44fb35aaaaa3ef96f",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, pale semi-matte finish with even, full coverage and a velvety texture.",
+          "eyes": "Soft warm peach and neutral brown wash over the upper lids; prominent aegyo-sal accentuated with pearlescent shimmer and subtle lower contour; thin black eyeliner along the upper lashline with a slight downward/natural flick; separated and curled upper lashes with mascara and defined individual spikes, subtle mascara on lower lashes.",
+          "brows": "Straight, soft-edged light warm brown brows filled in with powder for a diffuse finish.",
+          "cheeks": "Soft baby pink to peach blush concentrated on the apples of the cheeks and blended toward the temples; subtle pinpoint highlighter on the tip of the nose.",
+          "lips": "Satin rose-pink lip with a subtle gradient effect, deeper at the center and softly blurred at the vermilion border."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 423
+        },
+        "costUsd": 0.002574,
+        "latencyMs": 9979
+      },
+      "analyzedAt": "2026-09-22T07:45:56.507Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260820_DcOT8GvqGec_01.jpg",
+      "imageSha256": "656bb6e6d328d2490da0f03f25cc44e35266ac16cbcf07b4a2a92d965e173aad",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage porcelain finish with a soft satin glow and subtle nose bridge highlighting.",
+          "eyes": "Soft neutral peach-beige eyeshadow wash, pronounced aegyo-sal with fine shimmer highlight, thin black liquid eyeliner along the upper lash line extending into a slight downward-angled wing, and delicate fluttery false lashes.",
+          "brows": "Straight, softly filled light brown powder brows with a natural arch and feathered texture.",
+          "cheeks": "Soft petal pink blush placed centrally on the apples of the cheeks and blended outward.",
+          "lips": "Rosy coral pink lip color with a gradient effect, deeper center, blurred borders, and a glossy finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 585
+        },
+        "costUsd": 0.003182,
+        "latencyMs": 7048
+      },
+      "analyzedAt": "2026-09-22T07:45:54.471Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260821_DcSSlgOKgJM_01.jpg",
+      "imageSha256": "19d5f26ec396bf56316fd7755d125f98a4d2f7a91980b5f70577ccbcbfc63ff7",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with light-reflecting dewy glow on the forehead and nose bridge; porcelain coverage with a blurred texture",
+          "eyes": "Soft peach-toned shadow washed over the lid, bright pearl shimmer emphasizing the lower lid (aegyo-sal) with soft contour underneath; thin black winged eyeliner following the downward lash line curve; well-curled, separated lashes with defining black mascara",
+          "brows": "Straight, softly filled Korean-style brows in a medium warm brown shade with diffuse edges",
+          "cheeks": "Translucent baby pink blush placed high on the apples of the cheeks beneath the eyes, blended outwards with a soft highlighter on high points",
+          "lips": "Glossy sheer pink-coral tint with subtle gradient effect and softly blended borders"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 417
+        },
+        "costUsd": 0.002552,
+        "latencyMs": 7682
+      },
+      "analyzedAt": "2026-09-22T07:46:02.114Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260823_DcXQxvTqIWo_01.jpg",
+      "imageSha256": "ba22d524757d6ee4e9cb15f4dea095a6ceee22021bc3dfb4c0001e0f34243c7c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous, dewy finish with high-shine highlights on the bridge and tip of the nose and center of the forehead; smooth, medium coverage.",
+          "eyes": "Soft champagne-shimmer eyeshadow across the lids; prominent aegyo-sal accented with pale pearl shimmer and subtle brown contouring beneath; fine black winged eyeliner; long, separated curled upper lashes with defined lower lashes.",
+          "brows": "Light warm brown, softly filled straight-arched shape with a blurred, powder-like texture.",
+          "cheeks": "Soft peachy-pink blush applied high on the apples and blended toward the temples, paired with reflective dewy highlighter on the cheekbones.",
+          "lips": "Glossy muted rose-pink lip with a gentle gradient effect, concentrated slightly darker toward the inner lips with a high-shine finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 467
+        },
+        "costUsd": 0.002739,
+        "latencyMs": 9619
+      },
+      "analyzedAt": "2026-09-22T07:46:04.199Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260824_DcaLRzaxRu-_01.jpg",
+      "imageSha256": "bb2c77e33b93652cd871fed631c6103b11df11f0aa351a79374e91caa6026ee7",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, luminous finish with light-to-medium coverage and natural radiance.",
+          "eyes": "Soft warm neutral wash over the lid, thin black or dark brown upper lashline definition extending slightly outward, curled lashes with defining mascara.",
+          "brows": "Softly filled, gentle natural arch in a neutral brown shade.",
+          "cheeks": "Subtle warm peach-pink blush swept along the upper cheekbones with delicate high-point highlighting.",
+          "lips": "Satin-finish warm rosy-coral red lipstick with soft, defined borders."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 635
+        },
+        "costUsd": 0.003398,
+        "latencyMs": 7588
+      },
+      "analyzedAt": "2026-09-22T07:46:04.189Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260827_DcimgOFKYf4_01.jpg",
+      "imageSha256": "4358faee8630040443fd37b59980c35601afce68cacea0b7dc4ef9687d0b6976",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant finish with light to medium coverage and soft high-point illumination",
+          "eyes": "Subtle warm peach eyeshadow, thin black/dark brown liner with a slight downward-to-horizontal wing, prominent aegyo-sal contouring with shimmer highlight, curled upper lashes with lengthening mascara",
+          "brows": "Softly defined straight brows in a medium warm brown shade with natural texture",
+          "cheeks": "Soft peachy-pink blush blended over the apples of the cheeks and subtly across the center of the face, light highlighter on the nose tip",
+          "lips": "Glossy coral-pink tint with a blurred edge and concentrated color toward the center"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 392
+        },
+        "costUsd": 0.002458,
+        "latencyMs": 5372
+      },
+      "analyzedAt": "2026-09-22T07:46:07.651Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260828_DckaRtDx16N_01.jpg",
+      "imageSha256": "d434a3db546df73b169daed57fe7161572b54e161b276c180524ace08ab12b74",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned porcelain finish with a soft luminous glow",
+          "eyes": "Soft neutral wash on the eyelid, dark brown or black liquid upper eyeliner with an extended flick, defined aegyo-sal highlighted with pearlescent shimmer, and lifted, separated upper lashes with mascara",
+          "brows": "Straight, softly filled brows in a natural medium-brown shade",
+          "cheeks": "Delicate soft pink blush placed high on the visible cheekbone with subtle luminous highlighting",
+          "lips": "Berry-rose pink lip color with a satin-gloss finish and softly blended edges"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 576
+        },
+        "costUsd": 0.003148,
+        "latencyMs": 9769
+      },
+      "analyzedAt": "2026-09-22T07:46:14.124Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260902_DcxWjkfN0Bd_01.jpg",
+      "imageSha256": "0b046389c1c91b367f178d41b5b96bdca809f2bc25a7279d420662acd2f0389b",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, dewy finish with even, light-to-medium coverage and luminous texture.",
+          "eyes": "Subtle shimmering neutral/peach eyeshadow, thin black/dark brown upper eyeliner with a small outer flick, accentuated lower aegyo-sal highlight, and curled, defined lashes with mascara.",
+          "brows": "Softly filled, natural brown tone with a straight shape, partially obscured by bangs.",
+          "cheeks": "Soft peachy-pink blush placed high on the visible cheekbone with a subtle luminous sheen.",
+          "lips": "Glossy coral-pink tint with a soft-edged, high-shine finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 601
+        },
+        "costUsd": 0.003242,
+        "latencyMs": 7473
+      },
+      "analyzedAt": "2026-09-22T07:46:11.833Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260904_Dc2f25ZRJx4_01.jpg",
+      "imageSha256": "a86a5855db8dce5eecad4523a0fcebcee66e78f59893261d24d8bcae97d3ba5c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous satin finish with medium, even coverage and slight brightening under the eyes and center of the face",
+          "eyes": "Soft peach and warm beige eyeshadow across the lids and along the lower lash line; highlighted under-eye aegyo sal; fine black upper liner subtly extending outwards; defined, curled lashes with lengthening mascara",
+          "brows": "Soft straight-arch shape filled with medium brown powder for a feathered, natural finish",
+          "cheeks": "Soft peachy-pink blush focused on the apples of the cheeks, paired with subtle champagne highlighter on the nose bridge and cheekbones",
+          "lips": "Rose-pink satin lip with soft edges and a subtle gloss sheen"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 387
+        },
+        "costUsd": 0.002439,
+        "latencyMs": 5295
+      },
+      "analyzedAt": "2026-09-22T07:46:13.083Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260906_Dc8CgIFRhT7_01.jpg",
+      "imageSha256": "9ed7e6b115392c7d5382bb96d2ffeced610c0ef54766d0397e60ec48e6fa976b",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with soft-focus blurring; subtle contouring along the nose bridge and tip.",
+          "eyes": "Soft peachy-apricot and beige-brown wash on upper eyelids; prominent highlighted aegyo sal with shimmer and soft under-eye contour; thin black-brown upper eyeliner tapering softly downward; distinct, separated, curled upper and lower lashes with mascara creating a doll-eye effect.",
+          "brows": "Soft straight-arched brows, filled with a warm light-brown powder/pencil for a diffused, natural texture.",
+          "cheeks": "Vibrant soft pink blush applied high on the apples of the cheeks just below the under-eye area; subtle pearl highlight on the tip of the nose.",
+          "lips": "Glossy gradient lip with vibrant berry-pink concentrated at the inner center and feathered out to a softer rose at the edges."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 493
+        },
+        "costUsd": 0.002837,
+        "latencyMs": 6312
+      },
+      "analyzedAt": "2026-09-22T07:46:18.247Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260907_Dc-ertmRz9m_01.jpg",
+      "imageSha256": "fc5bef4ee6e75867ef4cf0c40bee07d03bca8f9b82529672e9a287775d95c28f",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned satin finish with light-to-medium coverage",
+          "eyes": "Soft neutral-pink eyeshadow, fine black upper eyeliner extending into a subtle wing, accented lower lash line, and curled mascara on defined lashes",
+          "brows": "Softly filled, natural straight-arched brown brows",
+          "cheeks": "Subtle pink blush blended high across the cheekbones",
+          "lips": "Glossy pink tint with a slightly deeper color concentrated at the center"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 364
+        },
+        "costUsd": 0.002353,
+        "latencyMs": 5495
+      },
+      "analyzedAt": "2026-09-22T07:46:18.730Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260910_DdErw17J5GU_01.jpg",
+      "imageSha256": "c00174bbaddb1bb405c32e2e39f77e267bb6be3cfd53b49618fd4f402ad9a362",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage base with a soft satin-matte finish and subtle pore-blurring effect.",
+          "eyes": "Warm peach and neutral brown wash across the upper lid; luminous pearlescent highlight on the lower lash line (aegyo sal) with subtle under-eye shading; thin dark upper liner with a delicate downward-angled wing; curled upper lashes with separated mascara/clusters and light lower lash mascara.",
+          "brows": "Softly arched, medium-thick brows filled with light brown powder for a natural, diffused look.",
+          "cheeks": "Soft peachy-pink blush blended over the apples of the cheeks; subtle contouring along the sides of the nose with a pinpoint highlight on the nose tip.",
+          "lips": "Warm coral-rose lip color applied with slightly diffused edges and a hydrating satin to glossy finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 421
+        },
+        "costUsd": 0.002567,
+        "latencyMs": 6070
+      },
+      "analyzedAt": "2026-09-22T07:46:20.339Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260911_DdIa8TTshcR_01.jpg",
+      "imageSha256": "8e579194d8bbf62c9594d022064d90572648e0d6e3610e8f5258442285d48a84",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous, dewy finish with even, light-to-medium coverage and subtle high-point radiance",
+          "eyes": "Soft neutral-pink wash over the lids, thin dark upper eyeliner defining the lash line, lightly coated upper lashes, and subtle aegyo-sal highlighting underneath",
+          "brows": "Naturally defined, straight-arched brows filled softly with a warm brown tone",
+          "cheeks": "Soft pinkish-peach blush blended across the apples of the cheeks toward the temples with delicate highlighting",
+          "lips": "Glossy gradient lip in a soft rose-pink shade, concentrated toward the inner center"
+        },
+        "usage": {
+          "inputTokens": 1353,
+          "outputTokens": 437
+        },
+        "costUsd": 0.002654,
+        "latencyMs": 5992
+      },
+      "analyzedAt": "2026-09-22T07:46:24.324Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260913_DdOHdyKxWVb_01.jpg",
+      "imageSha256": "edfcba3608d82cd5cec511876eaf877b32247a018227c274517472e4eb58e4c3",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with even, radiant coverage and subtle blurring effect.",
+          "eyes": "Soft neutral peachy-beige eyeshadow blended across the lids, prominent shimmer on the aegyo-sal, thin dark brown winged eyeliner extending outward, and curled, defined upper lashes.",
+          "brows": "Soft, straight-arched light brown brows filled with a soft powder finish.",
+          "cheeks": "Soft petal-pink blush swept across the apples of the cheeks blending upward toward the temples.",
+          "lips": "Glossy rosy-pink tint with a soft-focus outer edge and high-shine finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 856
+        },
+        "costUsd": 0.004198,
+        "latencyMs": 8726
+      },
+      "analyzedAt": "2026-09-22T07:46:27.636Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260916_DdWLNHcyxgN_01.jpg",
+      "imageSha256": "d78b82726c8c30adceb308dfaec0693217d55099d280edc9e61aa70dd3d037f1",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish on the visible upper face and forehead.",
+          "eyes": "Warm peachy-brown eyeshadow softly blended across lids and lower lash line, delicate dark eyeliner along the upper lash line, lengthened mascara-defined lashes, and highlighted under-eye aegyo sal.",
+          "brows": "Softly filled, medium-thickness straight brows in warm brown.",
+          "cheeks": "Mostly obscured by phone; faint soft blush visible at upper cheekbone.",
+          "lips": "Completely obscured by phone."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 386
+        },
+        "costUsd": 0.002435,
+        "latencyMs": 4991
+      },
+      "analyzedAt": "2026-09-22T07:46:25.424Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260919_DddBf4jvOz6_01.jpg",
+      "imageSha256": "35f2d08e20c04866af73e6faabbcd467b5c8639c0d2b87f8ea877c970a99b9e5",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Luminous dewy finish with even, high-coverage porcelain foundation, subtle highlight on the bridge and tip of the nose",
+          "eyes": "Soft peach and pink wash of shadow on the lids, highlighted aegyo-sal with subtle contour underneath, thin dark brown upper eyeliner extending into a delicate soft flick, neatly curled lashes with separating mascara",
+          "brows": "Soft straight brows in light-to-medium brown with a diffused powdery finish",
+          "cheeks": "Soft pink blush placed high on the apples of the cheeks directly under the eyes, blended outward seamlessly",
+          "lips": "Rose-pink lip tint with a blurred edge, darker center concentration for a soft gradient effect, and a moist satin-gloss finish"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 409
+        },
+        "costUsd": 0.002522,
+        "latencyMs": 6911
+      },
+      "analyzedAt": "2026-09-22T07:46:31.386Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260920_DdfkcpxOg6Q_01.jpg",
+      "imageSha256": "11a3f6f9e0d7fbac17f5e96572b38c9a283d18ea38ff343547670f58555bf26e",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even finish with a soft natural-matte texture on the visible forehead.",
+          "eyes": "Warm neutral brown eyeshadow lightly shaded across the lid and outer crease; fine dark eyeliner defining the upper lash line; lengthened and curled lashes with mascara.",
+          "brows": "Softly filled, gently arched brows in a medium warm brown shade.",
+          "cheeks": "Mostly obscured by phone; faint subtle warmth visible near the outer high cheekbones.",
+          "lips": "Completely obscured by the phone."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 347
+        },
+        "costUsd": 0.002289,
+        "latencyMs": 6034
+      },
+      "analyzedAt": "2026-09-22T07:46:31.608Z"
+    },
+    {
+      "file": "tori_nakasu_eri/20260921_Ddi4fjth_ej_01.jpg",
+      "imageSha256": "99b6285c11e2f89ef35dc1e837bdeab8d998b6f32aa26d6175209a3b5dfeb8a6",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with soft-focus coverage and subtle brightening along the high planes of the face.",
+          "eyes": "Warm nude and soft brown eyeshadow washed over the lids and lower lash line; shimmering highlight defining the aegyo-sal; thin dark eyeliner with a subtle soft wing; neatly curled upper lashes with mascara and lightly coated lower lashes.",
+          "brows": "Softly filled, straight brows in a medium warm brown tone with soft, diffused inner edges.",
+          "cheeks": "Delicate peach-pink blush applied softly over the apples of the cheeks and blended toward the temples.",
+          "lips": "Berry-rose gradient tint concentrated at the center with blurred edges and a subtle glossy finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 468
+        },
+        "costUsd": 0.002743,
+        "latencyMs": 7329
+      },
+      "analyzedAt": "2026-09-22T07:46:35.025Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260108_DTP4TcgEkw8_01.jpg",
+      "imageSha256": "fa9f5fc521f9e0653f2afb9a3683b8aa59146a0b6523c7f76520487237249e10",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, blurred porcelain finish with a soft-matte texture and even, high coverage.",
+          "eyes": "Soft peachy-pink eyeshadow across the upper lid and lower lash line; prominent aegyo-sal contoured with light brown underneath and highlighted with shimmering champagne; thin brown upper eyeliner extended into a gentle downward wing; distinct manga-style separated upper false lashes and delicately coated lower lashes.",
+          "brows": "Light warm brown, softly filled straight shape with a powdered texture.",
+          "cheeks": "Cool-toned pink blush swept high across the apples and directly under the eyes; subtle pink contouring at the tip of the nose.",
+          "lips": "Rose-pink gradient lip with soft blurred edges, darker coral-rose concentration toward the center, and a velvety satin finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 414
+        },
+        "costUsd": 0.00254,
+        "latencyMs": 6188
+      },
+      "analyzedAt": "2026-09-22T07:46:37.647Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260109_DTSUN6FErnC_01.jpg",
+      "imageSha256": "b68aabda64deefc7f3a555a8da66cd7454fcfb1bfd717c8f997994e232706515",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even semi-matte finish with subtle soft-focus radiance on the center of the face",
+          "eyes": "Soft neutral peachy-brown wash across the upper lids, prominent aegyo sal highlighted with soft beige shimmer and subtle under-eye shading, thin black winged eyeliner extending slightly outward, curled lashes with defining black mascara",
+          "brows": "Softly filled, straight brows with a gentle taper in a light warm-brown shade",
+          "cheeks": "Soft wash of peachy-pink blush on the apples of the cheeks, subtle contour along the jawline",
+          "lips": "Velvet satin finish in a muted berry-red tone with a diffused outer edge and deeper pigmentation focused toward the center"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 519
+        },
+        "costUsd": 0.002963,
+        "latencyMs": 13073
+      },
+      "analyzedAt": "2026-09-22T07:46:44.743Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260620_DZzxpX4Eqir_01.jpg",
+      "imageSha256": "fc592396620d4b4174baef570a651e8b8c2c37521be91c09a4acf818006db2b7",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, even finish with light-to-medium coverage and a soft-matte look",
+          "eyes": "Completely obscured by dark sunglasses",
+          "brows": "Mostly obscured by sunglasses and hat brim, visible portions show natural dark tone",
+          "cheeks": "Subtle soft rose-toned blush lightly diffused on the apples",
+          "lips": "Soft rosy pink tint with a velvety blurred finish and defined shape"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 354
+        },
+        "costUsd": 0.002344,
+        "latencyMs": 5210
+      },
+      "analyzedAt": "2026-09-22T07:46:40.296Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260707_DafgVYWEje2_01.jpg",
+      "imageSha256": "ec25158bc407ad81c5007cf8f29a0950d5081ce7bec9a3fb84926a5e6788c7cf",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin-matte finish with even, porcelain coverage",
+          "eyes": "Warm neutral eyeshadow washed across the upper lid, soft highlighting on the aegyo sal, fine black winged eyeliner flick at the outer corners, and defined, curled lashes",
+          "brows": "Naturally filled straight-to-soft-arch brows in a deep brown shade",
+          "cheeks": "Soft peachy-coral blush blended across the apples of the cheeks towards the temples",
+          "lips": "Warm terracotta/brick-red lip color with a soft satin finish and gently diffused edges"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 583
+        },
+        "costUsd": 0.003203,
+        "latencyMs": 13379
+      },
+      "analyzedAt": "2026-09-22T07:46:51.119Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260707_DafgVaOksXa_02.jpg",
+      "imageSha256": "906a8680ab61ca2bee03ea0314e911f8991ef19b317f9e7b8c019e7f28d439e8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned satin finish with light natural glow on the central high planes of the face.",
+          "eyes": "Soft neutral beige and warm brown wash across the upper lid; contoured aegyo sal with shimmer highlight on the under-eye roll; fine black liquid eyeliner with a slightly extended straight-to-downward wing; curled lashes with defining black mascara.",
+          "brows": "Straight, soft-arched shape filled in with soft medium ash-brown shade for a diffuse, natural look.",
+          "cheeks": "Subtle warm peach-pink blush dusted across the apples and high cheekbones; soft contouring along the nose bridge and jawline.",
+          "lips": "Deep muted brownish-rose shade with a glossy, hydrated finish and softly diffused borders."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 639
+        },
+        "costUsd": 0.003384,
+        "latencyMs": 10100
+      },
+      "analyzedAt": "2026-09-22T07:46:50.495Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260711_DapnYJoSU3m_01.jpg",
+      "imageSha256": "671426485dcb2380f1d4efb3e00c18ca1170b3b107f7c38d5f3c52c17463936b",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with an even, radiant complexion and minimal visible texture",
+          "eyes": "Soft peach and warm beige wash over the lids with subtle shimmer; finely drawn dark brown eyeliner extending into a small subtle wing; prominent curled, separated individual cluster lashes on upper lids; delicate definition along the lower lash line and aegyosal",
+          "brows": "Soft, straight-arched brows filled with light warm-brown powder for a diffused finish",
+          "cheeks": "Soft peachy-pink blush swept across the apples and outer cheekbones, complemented by subtle luminous highlighter on the high points of the cheeks and nose tip",
+          "lips": "Warm coral-terracotta tint with a glossy, hydrated finish and slightly concentrated depth at the center"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 511
+        },
+        "costUsd": 0.002904,
+        "latencyMs": 6268
+      },
+      "analyzedAt": "2026-09-22T07:46:51.155Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260711_DapnYLcSWb5_02.jpg",
+      "imageSha256": "03d83d983b1e526f0bdab859a2f57c1e6fe667f37fa94000ce269ade45bf566d",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant semi-matte finish with even, medium coverage and subtle luminosity.",
+          "eyes": "Soft neutral peachy-brown eyeshadow wash across the upper lids; thin black liquid eyeliner along the upper lash line with an extended subtle wing; curled, elongated upper lashes with dark mascara; subtle brightening on the under-eye area.",
+          "brows": "Softly defined, arched-straight shape filled with a warm medium-brown powder or pencil.",
+          "cheeks": "Soft pinkish-coral blush blended across the high apples of the cheeks; subtle champagne highlight on the cheekbones and nose tip.",
+          "lips": "Deep rose-berry or brick-red lip color with a creamy, high-shine satin finish and softly diffused borders."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 532
+        },
+        "costUsd": 0.003011,
+        "latencyMs": 5793
+      },
+      "analyzedAt": "2026-09-22T07:46:56.413Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260712_DasijhKS8UC_01.jpg",
+      "imageSha256": "04c22140620ffa021548778025f78917c206f9a8221e6637bcc155b69be834c8",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth porcelain base with a soft matte, semi-luminous finish",
+          "eyes": "Subtle neutral-toned wash on lids with soft dark eyeliner along the upper lash line and defined lashes",
+          "brows": "Softly filled, natural straight-to-arched brown brows",
+          "cheeks": "Subtle wash of soft pink blush on the cheeks",
+          "lips": "Soft rose-pink tint with a glossy, hydrated finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 390
+        },
+        "costUsd": 0.002479,
+        "latencyMs": 8962
+      },
+      "analyzedAt": "2026-09-22T07:47:00.237Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260712_DasijkwyTAs_02.jpg",
+      "imageSha256": "92c33401e81c5d715f8eba1f9b2868b8297bd53280c3ed82f1020bcdd9bfe00f",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even porcelain finish with soft natural matte coverage",
+          "eyes": "Subtle wash of neutral-pink eyeshadow, fine dark upper eyeliner, and mascara defining the lashes",
+          "brows": "Softly filled, straight brows in a warm medium-brown shade",
+          "cheeks": "Delicate wash of soft pink blush on the apples of the cheeks",
+          "lips": "Semi-glossy soft pink-coral lip color with a softly blended edge"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 390
+        },
+        "costUsd": 0.002479,
+        "latencyMs": 7466
+      },
+      "analyzedAt": "2026-09-22T07:46:58.755Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260714_DaxQGn8yu1m_01.jpg",
+      "imageSha256": "174622e8e5eb20da3b2c561d04271be2b6a07331e109dc1fd77518b37e74a44f",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte to satin finish with even coverage and subtle soft-focus blurring.",
+          "eyes": "Soft peachy-pink eyeshadow washed across the mobile lid and lower lash line; sculpted aegyo-sal with bright pale shimmer on the lower puff and a soft shadow beneath; dark brown winged eyeliner extending outward and slightly downward; well-curled, separated upper lashes with lash clusters and lightly defined lower lashes.",
+          "brows": "Straight, soft-arched shape filled with light warm brown powder, keeping the inner heads diffused.",
+          "cheeks": "Soft peachy-coral blush concentrated on the apples of the cheeks and diffused upward; subtle natural highlight on the nose tip and cheekbones.",
+          "lips": "Gradient rosy-nude lip color with deeper concentration towards the inner center, finished with a high-shine gloss."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 557
+        },
+        "costUsd": 0.003105,
+        "latencyMs": 5863
+      },
+      "analyzedAt": "2026-09-22T07:47:02.342Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260714_DaxQGoaySt6_02.jpg",
+      "imageSha256": "b4b26d6af87ce098b0aeec428aa468479e85a4981b4d5f8af9e5a7fc9de6ea58",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, luminous semi-matte finish with even coverage, featuring soft illumination on the bridge of the nose and cheekbones.",
+          "eyes": "Warm copper-peach shimmer eyeshadow applied across the upper lids, defined with a fine black winged eyeliner flick extending past the outer corner, complemented by curled and lengthened black mascara on the upper lashes.",
+          "brows": "Softly structured, straight-to-softly arched brows filled in with a light warm brown tone.",
+          "cheeks": "Warm peachy-coral blush swept across the apples and high cheekbones, paired with a subtle radiant highlight.",
+          "lips": "Velvet satin-finish muted rose-pink lip color with softly diffused edges."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 872
+        },
+        "costUsd": 0.004286,
+        "latencyMs": 13308
+      },
+      "analyzedAt": "2026-09-22T07:47:12.150Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260715_Da0SX_5SpHI_01.jpg",
+      "imageSha256": "96516522ab56e4a94b5477285dc138a0b0a8be843b501e206e276fc80de12609",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with even, medium coverage and soft-focus powdering.",
+          "eyes": "Warm neutral and soft peach eyeshadow across the lid and along the lower lash line (aegyo sal); subtle dark eyeliner closely tracing the upper lash line with a fine, gentle wing; curled upper lashes coated with black mascara.",
+          "brows": "Softly filled, straight brows with a subtle arch in a light brown shade to match the hair tone.",
+          "cheeks": "Soft peachy-pink blush placed high on the apples of the cheeks; subtle soft highlight on the cheekbones.",
+          "lips": "Warm coral-red with a satin-to-glossy finish, concentrated slightly more toward the center for a soft gradient effect."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 478
+        },
+        "costUsd": 0.00278,
+        "latencyMs": 5203
+      },
+      "analyzedAt": "2026-09-22T07:47:05.573Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260716_Da21M4jSFdr_01.jpg",
+      "imageSha256": "94481cb1649662172146f64097f32dee06d4dbb9a93ad0add1b769c6deff0f23",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, pale satin-finish foundation with even coverage",
+          "eyes": "Neutral brown contouring shadow, subtle aegyo-sal enhancement, fine dark eyeliner, and lengthened lashes",
+          "brows": "Softly filled, arched light brown brows",
+          "cheeks": "Subtle soft pink blush centered on the apples of the cheeks",
+          "lips": "Natural glossy pink-nude lip color"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 501
+        },
+        "costUsd": 0.002895,
+        "latencyMs": 5728
+      },
+      "analyzedAt": "2026-09-22T07:47:08.149Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260716_Da21M4yyv4Q_02.jpg",
+      "imageSha256": "089f21bed9951f096ddf7f2f036aa98fbad87960556e127bee16107fd47f715e",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte finish with light-to-medium coverage and a soft-focus effect.",
+          "eyes": "Subtle warm-toned eyeshadow with fine black/brown eyeliner along the upper lash line and lengthened mascara on lashes.",
+          "brows": "Soft, straight natural brown brows with gentle shading.",
+          "cheeks": "Soft wash of peachy-pink blush centered on the apples of the cheeks.",
+          "lips": "Muted coral-rose lip color with a soft satin finish."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 356
+        },
+        "costUsd": 0.002323,
+        "latencyMs": 5478
+      },
+      "analyzedAt": "2026-09-22T07:47:11.104Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260720_DbA8qxtS5Zs_01.jpg",
+      "imageSha256": "1e997c660f44495ce66bee71572b8b24f7dc8105e0445a51b462d9b4483023c8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with even coverage and soft-focus effect under direct lighting.",
+          "eyes": "Subtle neutral-pink shimmer on the lids, thin black or dark brown liquid liner hugging the upper lash line, curled mascara on lashes, and delicate highlight emphasizing the aegyo-sal.",
+          "brows": "Softly defined straight brows in a light warm-brown shade, filled naturally.",
+          "cheeks": "Soft peachy-pink blush placed over the apples of the cheeks blending toward the temples, with a subtle natural glow.",
+          "lips": "Rose-pink lip color with a soft satin to glossy sheen and gently diffused lip line."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 416
+        },
+        "costUsd": 0.002576,
+        "latencyMs": 6557
+      },
+      "analyzedAt": "2026-09-22T07:47:14.848Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260720_DbA8rE7ygrK_02.jpg",
+      "imageSha256": "3dcd4a929e5091821a02e028e56683a2dfb205c74c22b7f293a570588cfc3ada",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth porcelain finish with high coverage and a soft, luminous semi-matte glow.",
+          "eyes": "Soft neutral-pink wash across the lids, subtle aegyo-sal highlighting beneath the lower lash line, delicate thin black/dark brown winged liner extending slightly outward, and lengthened, curled upper lashes coated with mascara.",
+          "brows": "Softly filled, straight brows with a delicate taper in a warm light brown shade.",
+          "cheeks": "Subtle wash of soft pink blush blended over the apples and high cheekbones, paired with delicate highlighting on the nose bridge.",
+          "lips": "Glossy pink-coral lip color with a gradient effect, slightly diffused lip line, and high-shine reflective finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 474
+        },
+        "costUsd": 0.002794,
+        "latencyMs": 6175
+      },
+      "analyzedAt": "2026-09-22T07:47:17.407Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260723_DbIX_LZyPoZ_01.jpg",
+      "imageSha256": "b4f78ac7266ea5de862070cbb1a990de40a8cc9c7d02003c17a590df7f5c417c",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte porcelain finish with medium, even coverage and a soft glow on high points.",
+          "eyes": "Subtle neutral beige and soft peachy wash across the eyelids, thin black winged eyeliner defining the upper lash line, lengthened black mascara on upper lashes, and soft highlighting emphasizing the lower lash line.",
+          "brows": "Softly filled, straight shape in a warm light brown shade.",
+          "cheeks": "Soft peachy-pink blush placed over the center of the cheeks, subtly blended outwards without harsh contour.",
+          "lips": "Warm coral-pink lip color with a satin-to-glossy finish, smoothly applied with natural definition."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 464
+        },
+        "costUsd": 0.002756,
+        "latencyMs": 5124
+      },
+      "analyzedAt": "2026-09-22T07:47:17.422Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260723_DbIX_SCSUca_02.jpg",
+      "imageSha256": "c0700492f058220c0094966eb4b333645aa2546cadf1e67f82cd8bc1a602b21a",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with light-to-medium coverage providing an even complexion.",
+          "eyes": "Subtle neutral eyeshadow wash, defined thin dark upper eyeliner with a small outer flick, and mascara on curled lashes.",
+          "brows": "Softly filled, arched brows in a warm light brown shade.",
+          "cheeks": "Soft peachy-pink blush diffused across the apples of the cheeks.",
+          "lips": "Warm rose-pink lip color with a soft sheen/glossy finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 606
+        },
+        "costUsd": 0.003289,
+        "latencyMs": 7903
+      },
+      "analyzedAt": "2026-09-22T07:47:22.902Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260726_DbQfKfTS3fP_02.jpg",
+      "imageSha256": "4cbe324962d960ccfa11b298def3ec02664ea3b79ab755ad642129b5e09c6c68",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, natural finish with light-to-medium coverage",
+          "eyes": "Subtle dark eyeliner along the upper lash line, soft neutral shadow, and light mascara",
+          "brows": "Soft, straight-arched brown brows with natural fill",
+          "cheeks": "Soft peachy-pink blush lightly applied to the apples of the cheeks",
+          "lips": "Muted rosy-coral tone with a soft satin finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 358
+        },
+        "costUsd": 0.002359,
+        "latencyMs": 5934
+      },
+      "analyzedAt": "2026-09-22T07:47:23.483Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260726_DbQfKi2yoVG_03.jpg",
+      "imageSha256": "304e1b1f5ba1afd754b3e106d0e55a61b2ca6450f3321020460b3d7765377403",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, even finish with natural radiance",
+          "eyes": "Soft neutral eyeshadow with subtle dark eyeliner along the upper lash line and defined lashes",
+          "brows": "Softly filled, natural straight-to-arched brown brows",
+          "cheeks": "Subtle wash of soft pink blush on the cheeks",
+          "lips": "Natural pink-rose lip tint with a soft satin-gloss finish"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 408
+        },
+        "costUsd": 0.002518,
+        "latencyMs": 6971
+      },
+      "analyzedAt": "2026-09-22T07:47:24.526Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260727_DbTBCqBSkzq_01.jpg",
+      "imageSha256": "c7fe99e5dda20e658a12404bd56dfced386fc3135d3483ecba351509245e119e",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with soft-focus blurring, light powder setting in the T-zone, and targeted highlighter on the bridge and tip of the nose.",
+          "eyes": "Warm nude and soft coral-brown eyeshadow blended across the upper lid; accented aegyo-sal with shimmering champagne along the lower lash line and delicate brown contouring underneath; ultra-fine black liquid eyeliner with a subtle downward-to-straight wing; curled upper false lash clusters and defined lower lashes.",
+          "brows": "Softly filled, slightly arched straight brows in a warm light-brown shade with gentle feathering.",
+          "cheeks": "Soft peachy-pink blush swept high on the apples of the cheeks and blended toward the under-eye area, paired with subtle contour along the nose bridge.",
+          "lips": "Glossy rose-coral lip color with a gradient effect, concentration of pigment at the center, and a soft, plush outer edge."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 514
+        },
+        "costUsd": 0.002915,
+        "latencyMs": 5812
+      },
+      "analyzedAt": "2026-09-22T07:47:28.841Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260728_DbVXBGVSCf__01.jpg",
+      "imageSha256": "479b3ea69d3dfed90b53b769f44fb0d19c0c10ef9a81c8a5d8ef2bed2e030476",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with even, radiant coverage and subtle illumination on the high planes of the face.",
+          "eyes": "Neutral soft pink-beige base shadow, defined aegyo-sal contour with shimmer highlight underneath, thin dark eyeliner extending into a subtle downward flick, and curled, separated upper lashes with lengthening mascara.",
+          "brows": "Softly filled, natural straight brow shape with rounded tails in a soft medium-brown tone.",
+          "cheeks": "Soft pink blush placed on the apples of the cheeks blending outward toward the cheekbones, complemented by faint subtle highlighter.",
+          "lips": "Glossy rose-pink lip with slight gradient concentration toward the center and soft, diffused borders."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 503
+        },
+        "costUsd": 0.002874,
+        "latencyMs": 6850
+      },
+      "analyzedAt": "2026-09-22T07:47:30.480Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260728_DbVXBKcy-mu_03.jpg",
+      "imageSha256": "d298706fbcbabdfc9b95ad42bcfca0858799b3364119509902c96666a6835117",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Pale porcelain, smooth satin-matte finish with even, medium coverage.",
+          "eyes": "Soft neutral peachy-pink eyeshadow across lids, prominent aegyo-sal highlighted with pale shimmer and light under-eye contour, fine black upper eyeliner extending into a subtle downturned flick, delicately curled upper lashes with black mascara.",
+          "brows": "Soft, straight Korean-style brows filled in a light caramel-brown powder with blurred edges.",
+          "cheeks": "Cool-toned baby pink blush applied centrally over the apples directly under the eyes, subtle pearl highlight on the tip and bridge of the nose.",
+          "lips": "Rose-pink gradient lip with soft blurred edges and a hydrating satin-gloss finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 430
+        },
+        "costUsd": 0.002629,
+        "latencyMs": 9193
+      },
+      "analyzedAt": "2026-09-22T07:47:33.834Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260730_Dbat3fuSm6I_01.jpg",
+      "imageSha256": "c3f1639373255a6b1d052551ccf5d154a4265c67a4e8a407d267214b5face68f",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, satin finish with light-to-medium coverage and a softly illuminated center of the face.",
+          "eyes": "Subtle neutral eyeshadow wash with prominent shimmering aegyo-sal highlight beneath the lower lash line; fine black liquid eyeliner with a delicate outward wing; defined upper mascara.",
+          "brows": "Light brown, straight-arched shape softly filled with powder for a gentle, natural definition.",
+          "cheeks": "Soft peachy-pink blush concentrated on the apples of the cheeks; subtle sheen highlight on the cheekbones and bridge of the nose.",
+          "lips": "Glossy warm pink tint with soft, slightly diffused edges."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 878
+        },
+        "costUsd": 0.004309,
+        "latencyMs": 10778
+      },
+      "analyzedAt": "2026-09-22T07:47:39.765Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260730_Dbat3iuytcG_02.jpg",
+      "imageSha256": "48f582f24702fe0b0e8a402f7c7e8dd06c7f13546ae448599b647543106e65f3",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned coverage with a natural satin finish.",
+          "eyes": "Soft wash of neutral peachy eyeshadow, delicate dark brown or black liquid eyeliner extending straight at the outer corner, curled lashes with defining mascara, and soft aegyo-sal highlighting under the lower lashline.",
+          "brows": "Softly filled, straight brows in a light brown shade with a natural, diffused finish.",
+          "cheeks": "Prominent soft pink blush focused high on the apples of the cheeks and blending outward under the eyes.",
+          "lips": "Glossy pink-coral tint with a soft, naturally defined border and higher shine at the center."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 423
+        },
+        "costUsd": 0.002603,
+        "latencyMs": 6362
+      },
+      "analyzedAt": "2026-09-22T07:47:36.994Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260806_DbswlaCyTbh_01.jpg",
+      "imageSha256": "e707462b94a9a4c65848872d4de9fea26cc9abbaf1aaf889980fd7f722c3e0b6",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned matte finish with moderate coverage",
+          "eyes": "Subtle eyeliner and mascara visible in shadow under the cap brim",
+          "brows": "Mostly obscured by the cap brim",
+          "cheeks": "Soft peachy-pink blush on the outer cheeks",
+          "lips": "Neutral pink satin-finish lipstick"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 352
+        },
+        "costUsd": 0.002336,
+        "latencyMs": 8289
+      },
+      "analyzedAt": "2026-09-22T07:47:42.253Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260806_Dbswllkyeql_02.jpg",
+      "imageSha256": "7e218681e2ccc15c015e1faa3845d12c9de897c40555e5e6954b1c07025c4fea",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with even coverage and soft-focus effect",
+          "eyes": "Subtle warm peach eyeshadow on upper lid and lower lash line, delicate black winged eyeliner flick, subtly emphasized aegyo-sal, and curled, defined upper lashes",
+          "brows": "Softly filled, straight brows in a natural dark brown shade",
+          "cheeks": "Warm peachy-pink blush applied softly across the apples and high cheekbones",
+          "lips": "Glossy gradient lip in a muted rose-peach hue with soft, blurred borders"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 426
+        },
+        "costUsd": 0.002585,
+        "latencyMs": 6291
+      },
+      "analyzedAt": "2026-09-22T07:47:43.417Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260811_Db5aAV6yx36_01.jpg",
+      "imageSha256": "f95926185ad0392e0312099f0057b26ff6e6e7f0177e849d5267c07d59d7516f",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, satin finish with natural radiant coverage",
+          "eyes": "Subtle neutral shadow, thin dark eyeliner, and lightly coated curled lashes",
+          "brows": "Soft natural brown brows with a gentle arch",
+          "cheeks": "Rosy pink blush placed on the apples of the cheeks with subtle natural highlight",
+          "lips": "Glossy rose-pink tint with soft definition"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 395
+        },
+        "costUsd": 0.002498,
+        "latencyMs": 5358
+      },
+      "analyzedAt": "2026-09-22T07:47:45.274Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260811_Db5aAbeyRts_02.jpg",
+      "imageSha256": "edc8ed97a5f4f5a25647300fb63a2822a37fe4a9c69be38df33fbb1557892df1",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even finish with light-to-medium coverage and a soft natural-matte texture.",
+          "eyes": "Subtle neutral eyeshadow with dark eyeliner along the upper lash line and mascara defining the lashes.",
+          "brows": "Softly filled, natural straight-to-arched brows in a medium brown tone.",
+          "cheeks": "Soft pink blush placed gently on the apples of the cheeks.",
+          "lips": "Rose-pink lip color with a natural satin sheen."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 320
+        },
+        "costUsd": 0.002216,
+        "latencyMs": 5368
+      },
+      "analyzedAt": "2026-09-22T07:47:47.782Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260812_Db8TyQpS79R_01.jpg",
+      "imageSha256": "9baa2b6c5b890920634b9d08ac21d8301cc2f03d8d6a49cd01f79028a291eca7",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even complexion with a natural matte to semi-matte finish",
+          "eyes": "Subtle neutral eyeshadow, thin dark eyeliner along the upper lash line with a slight outward extension, and defined lashes",
+          "brows": "Softly filled, natural straight-arched brown brows",
+          "cheeks": "Soft pinkish blush delicately blended on the apples of the cheeks",
+          "lips": "Soft rose-pink lip color with a natural satin sheen"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 423
+        },
+        "costUsd": 0.002574,
+        "latencyMs": 8878
+      },
+      "analyzedAt": "2026-09-22T07:47:52.457Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260812_Db8Tyz-y38J_02.jpg",
+      "imageSha256": "5039d8c9d0b5f9664246e8b0b30d39fb3ca1376b1cc83c39b646cbca47dd7fa9",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Even, radiant porcelain finish with soft natural luminosity",
+          "eyes": "Soft neutral brown wash over the lids, fine dark eyeliner with a subtle outward flick, and defined, curled lashes with black mascara",
+          "brows": "Softly filled, natural straight-arched brows in a medium brown tone",
+          "cheeks": "Soft peachy-pink blush applied across the apples and blended toward the temples with subtle cheekbone highlight",
+          "lips": "Glossy rose-pink tint with softly diffused lip contours"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 989
+        },
+        "costUsd": 0.004725,
+        "latencyMs": 7718
+      },
+      "analyzedAt": "2026-09-22T07:47:53.110Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260815_DcD0WTHyDgp_01.jpg",
+      "imageSha256": "96c4d29a4bd03c14fc12c0ffda884a539a6b5b422c4622d777821fa0984d830d",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, natural finish with light to medium coverage.",
+          "eyes": "Hidden beneath dark sunglasses; makeup not visible.",
+          "brows": "Partially obscured by sunglasses, appearing softly filled with a natural brown tone.",
+          "cheeks": "Subtle warm-toned flush on the cheekbone with a natural skin finish.",
+          "lips": "Soft rose-pink tint with a satin, hydrated finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 367
+        },
+        "costUsd": 0.002393,
+        "latencyMs": 7735
+      },
+      "analyzedAt": "2026-09-22T07:47:55.671Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260815_DcD0Wbgyjd7_02.jpg",
+      "imageSha256": "b22a18de3401dfb7ba43a17b79e366c3db3e60613d715c799f3afa45af3a04f9",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, even complexion with a natural satin finish",
+          "eyes": "Largely obscured by dark sunglasses",
+          "brows": "Softly filled natural arches visible above sunglasses frame",
+          "cheeks": "Subtle warm peach-pink blush high on the cheekbones",
+          "lips": "Warm rose-pink tint with a soft satin finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 389
+        },
+        "costUsd": 0.002475,
+        "latencyMs": 5212
+      },
+      "analyzedAt": "2026-09-22T07:47:57.820Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260823_DcYvVTEyrqV_01.jpg",
+      "imageSha256": "aecfaf846a235c45cc5803093642690efbd62f11b3c14bc3c914053c46fdd03f",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-dewy porcelain base with even coverage and soft glow",
+          "eyes": "Neutral peach-beige eyeshadow wash, delicate shimmer highlighting the aegyo sal, fine dark eyeliner with a soft downward wing, and defined curled upper lashes with black mascara",
+          "brows": "Softly shaded straight brows in a medium warm-brown tone with a natural gradient",
+          "cheeks": "Youthful soft pink blush concentrated on the apples and blended upward towards the temples, with a delicate highlight on the bridge and tip of the nose",
+          "lips": "Satin-to-glossy rose-pink tint with a soft-blurred outer perimeter and concentrated pigment at the center"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 684
+        },
+        "costUsd": 0.003581,
+        "latencyMs": 8498
+      },
+      "analyzedAt": "2026-09-22T07:48:01.719Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260823_DcYvWKHyV-J_02.jpg",
+      "imageSha256": "8f63729c07ea9a0e00222667f35c175aca3071c927046d971f20ae7997897189",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, natural-satin finish with light, even coverage",
+          "eyes": "Subtle neutral shadow wash, fine dark upper liner, and lightly defined lashes",
+          "brows": "Soft, natural straight brows filled with medium brown",
+          "cheeks": "Soft peachy-pink blush on the apples of the cheeks",
+          "lips": "Rose-pink tinted lip with a soft glossy finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 585
+        },
+        "costUsd": 0.00321,
+        "latencyMs": 8476
+      },
+      "analyzedAt": "2026-09-22T07:48:04.267Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260825_Dcdp-qvSnOE_01.jpg",
+      "imageSha256": "abe0acf7bde7dfdbc82368340b0ed92550bca351d0b640bd28b78655500f3c0a",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, pale complexion with a soft-matte, airbrushed finish",
+          "eyes": "Subtle neutral eyeshadow wash, thin dark brown winged eyeliner, emphasized aegyo-sal underline, and lengthened curled lashes",
+          "brows": "Soft, straight-arched brown brows partially obscured by hair",
+          "cheeks": "Soft peachy-pink blush placed high on the apples of the cheeks",
+          "lips": "Glossy pink-coral tint with soft, blurred borders"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 511
+        },
+        "costUsd": 0.002933,
+        "latencyMs": 6419
+      },
+      "analyzedAt": "2026-09-22T07:48:04.390Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260825_Dcdp-vzSrV7_02.jpg",
+      "imageSha256": "3741881e852f9700d01c92ffe2920c0defcae008ff9d3915b0af6c74db6e3e32",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with light-to-medium natural coverage.",
+          "eyes": "Subtle warm-toned eyeshadow wash, thin dark upper eyeliner, and lightly coated lashes with subtle under-eye highlighting.",
+          "brows": "Softly filled, straight warm brown brows.",
+          "cheeks": "Soft pink blush placed delicately on the center of the cheeks.",
+          "lips": "Glossy coral-pink lip color with soft edges."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 500
+        },
+        "costUsd": 0.002891,
+        "latencyMs": 6723
+      },
+      "analyzedAt": "2026-09-22T07:48:08.594Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260825_Dcdp-y4ST_1_03.jpg",
+      "imageSha256": "9ab9495a750073facbdadc6cd0d187757b28fd814ac36b505047a9939f0e8ac8",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, radiant finish with light to medium coverage and natural luminosity.",
+          "eyes": "Hidden beneath dark sunglasses; specific eye makeup is not discernible.",
+          "brows": "Natural, softly filled straight brow in a neutral medium brown tone.",
+          "cheeks": "Subtle flush of peachy-pink blush on the lower cheeks.",
+          "lips": "Soft pinkish-coral lip color with a glossy, hydrated finish and blurred lip line."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 458
+        },
+        "costUsd": 0.002734,
+        "latencyMs": 7636
+      },
+      "analyzedAt": "2026-09-22T07:48:12.032Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260827_Dci-scoy3oW_01.jpg",
+      "imageSha256": "a679f884501848010a09b44c06f7c3aea3574403c6ba97031ef165f6ce974572",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, pale satin finish with even coverage",
+          "eyes": "Subtle neutral wash of eyeshadow, defined thin black upper eyeliner, and mascara on upper lashes",
+          "brows": "Soft straight brows in medium brown, partially obscured by the cap brim",
+          "cheeks": "Soft pink blush placed on the upper cheeks",
+          "lips": "Glossy rose-pink lip color with softly blended borders"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 415
+        },
+        "costUsd": 0.002573,
+        "latencyMs": 7250
+      },
+      "analyzedAt": "2026-09-22T07:48:11.740Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260827_Dci-shlSCsB_02.jpg",
+      "imageSha256": "ec16a3eddb32752e1ffb17fcd4293712901f9d2a9a399d30f1295c025728a640",
+      "analysis": {
+        "faceVisibility": "obscured",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, pale semi-matte finish with even coverage and subtle glow on the chin and forehead.",
+          "eyes": "Completely obscured by dark sunglasses.",
+          "brows": "Mostly obscured by sunglasses and cap brim; softly filled light brown color.",
+          "cheeks": "Soft peachy-rose blush dusted high on the cheekbones.",
+          "lips": "Glossy nude-pink lip tint with soft, blended edges and high-shine finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 385
+        },
+        "costUsd": 0.00246,
+        "latencyMs": 4904
+      },
+      "analyzedAt": "2026-09-22T07:48:13.639Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260828_DcldZ6cyu4N_02.jpg",
+      "imageSha256": "181cb473a940b9b2c769ab9eb8370a3c07fcbaca57a9e73023e9a5dd68263dbf",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with soft-focus coverage and subtle brightening under the eyes and along the center of the face",
+          "eyes": "Soft peach and neutral taupe eyeshadow diffused over lids, prominent highlighted aegyo-sal with subtle under-eye contouring, delicate black or dark brown liquid winged eyeliner extended outward, and curled, defined individual-style lashes",
+          "brows": "Soft straight brows in a light taupe-brown shade, lightly filled with a blurred, natural arch",
+          "cheeks": "Diffused soft peachy-pink blush placed high on the apples sweeping toward the temples, paired with gentle nose-tip contour and luminous cheekbone highlight",
+          "lips": "Glossy gradient lips featuring a warm rose-pink base with deeper coral-red concentration at the inner center"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 470
+        },
+        "costUsd": 0.002779,
+        "latencyMs": 7579
+      },
+      "analyzedAt": "2026-09-22T07:48:19.466Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260828_DcldZqIy-ef_01.jpg",
+      "imageSha256": "08eb4f1d3c004541e83bbdf2dd0f0687a7d29298d47146041d94eb5ca4f010e2",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, porcelain satin finish with even coverage and subtle, soft-focus matte powdering across the T-zone.",
+          "eyes": "Soft wash of neutral beige and light brown eyeshadow across the lids; thin, defined dark eyeliner along the upper lash line with a subtle downward-to-horizontal outer wing; separated and curled upper lashes coated with black mascara.",
+          "brows": "Straight, softly structured shape filled with medium brown powder for a natural, diffused appearance.",
+          "cheeks": "Soft peachy-pink powder blush blended delicately over the apples of the cheeks and slightly upward toward the temples.",
+          "lips": "Soft rosy-pink lip color with a gradient effect, concentrated at the center and topped with a glossy, glass-like finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 705
+        },
+        "costUsd": 0.00366,
+        "latencyMs": 8716
+      },
+      "analyzedAt": "2026-09-22T07:48:20.875Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260828_DcldaAYSrTo_03.jpg",
+      "imageSha256": "679a03f55ee8a024f20d77cef6f16427116bd607baa8c7a30de0cbd0b80dc089",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, semi-matte to satin finish with even, high coverage and subtle natural glow on high points.",
+          "eyes": "Soft neutral peachy-beige eyeshadow over the mobile lids and lower lash line, highlighted under-eye aegyo-sal, thin precise black upper eyeliner extending slightly beyond the outer corner, and neatly curled, separated, fluttery lashes with mascara.",
+          "brows": "Softly filled, straight-arched light brown brows with a soft, diffused front.",
+          "cheeks": "Soft peachy-pink blush concentrated on the apples of the cheeks and blended softly outward; subtle contouring along the nose bridge with a tiny pinpoint highlight on the tip.",
+          "lips": "Moist, high-shine glossy finish in a warm rose-nude shade with a soft, blurred lip line."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 467
+        },
+        "costUsd": 0.002768,
+        "latencyMs": 6179
+      },
+      "analyzedAt": "2026-09-22T07:48:19.964Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260829_DcnvFjZxy4K_01.jpg",
+      "imageSha256": "6fee4410bc04940ebfca9c9868131c9a760729ac5a8388ec870b0bacc3084d17",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, radiant porcelain finish with soft-focus coverage and subtle brightening under the eyes and center of the face.",
+          "eyes": "Shimmery champagne-pink shadow on the lids and emphasized aegyo-sal; fine black eyeliner winged outward along the upper lash line; defined, separated spiky upper false lashes with lightly coated lower lashes.",
+          "brows": "Straight, softly filled light brown brows with a natural, diffused arch.",
+          "cheeks": "Vibrant pink-peach blush concentrated high on the apples of the cheeks and blended under the eyes; subtle highlighter on the tip of the nose.",
+          "lips": "Soft rose-coral lip color with a glossy finish and a subtle gradient concentrated toward the inner center."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 448
+        },
+        "costUsd": 0.002696,
+        "latencyMs": 5984
+      },
+      "analyzedAt": "2026-09-22T07:48:25.569Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260829_DcnvFrjxIeh_02.jpg",
+      "imageSha256": "b03d8acd26bbbc18ecdfa773476ba17ecd3ac2a3e7451983805097076b49bf01",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with uniform medium coverage and subtle radiance",
+          "eyes": "Soft wash of neutral peach/beige eyeshadow across the lid; fine dark brown or black liquid eyeliner extending into a subtle downward wing; prominent, curled individual upper lashes",
+          "brows": "Softly filled, straight shape with a subtle arch in a light brown tone",
+          "cheeks": "Soft peachy-pink blush placed high on the apples of the cheeks blending upward toward the temples; delicate highlight on the bridge and tip of the nose",
+          "lips": "Muted rosy-pink lip color with a high-shine glossy finish and softer blended edges"
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 381
+        },
+        "costUsd": 0.002417,
+        "latencyMs": 6650
+      },
+      "analyzedAt": "2026-09-22T07:48:26.737Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260830_DcokWz5EraB_02.jpg",
+      "imageSha256": "3b9fc0029e73f2e632c172686e62d3b89e88914d6db46a602545e6f16585e7b8",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, high-coverage matte to semi-matte porcelain finish with a softly blurred effect.",
+          "eyes": "Soft wash of peach-pink eyeshadow across the lids and lower lash line; defined aegyo sal highlighted with soft pearl shimmer; subtle dark brown tightline eyeliner; distinct, separated spiky doll-style false eyelashes on the top lash line with light mascara on lower lashes.",
+          "brows": "Straight, soft-arched shape filled with a light warm brown powder with soft, diffused edges.",
+          "cheeks": "Prominent, diffused baby pink to coral blush placed high on the apples of the cheeks directly under the eyes; soft highlight on the bridge and tip of the nose.",
+          "lips": "High-shine glossy finish in a rich berry-pink gradient, with soft, diffused edges slightly blurred past the natural lip line."
+        },
+        "usage": {
+          "inputTokens": 1317,
+          "outputTokens": 524
+        },
+        "costUsd": 0.002953,
+        "latencyMs": 6259
+      },
+      "analyzedAt": "2026-09-22T07:48:31.415Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260831_DctA9ZYyf-w_01.jpg",
+      "imageSha256": "ee2218f45b899753d43dd0e370eade8116b0cbb00a9417c065db5d6e24f40679",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even finish with soft natural radiance",
+          "eyes": "Subtle neutral eyeshadow, fine black upper eyeliner with a small wing, and lightly defined lashes",
+          "brows": "Softly filled, medium-brown arched brows",
+          "cheeks": "Soft pink blush swept across the cheekbones",
+          "lips": "Warm coral-pink tint with a soft satin finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 342
+        },
+        "costUsd": 0.002299,
+        "latencyMs": 6405
+      },
+      "analyzedAt": "2026-09-22T07:48:32.084Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260831_DctA9kXSBty_02.jpg",
+      "imageSha256": "eaf2ed13459893b5b40e4deab439ef6212c65d9cd050439394dd5121046ffa74",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth satin finish with light-to-medium coverage and natural radiance.",
+          "eyes": "Soft neutral eyeshadow washes with a subtle thin black eyeliner flick along the upper lash line, finished with mascara.",
+          "brows": "Softly filled, gently defined straight-arched brows in a medium brown shade.",
+          "cheeks": "Delicate wash of soft peach-pink blush high on the cheekbones.",
+          "lips": "Warm coral-red tint with a subtle glossy, hydrated finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 529
+        },
+        "costUsd": 0.003,
+        "latencyMs": 7038
+      },
+      "analyzedAt": "2026-09-22T07:48:33.887Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260909_DdEdnglylfC_01.jpg",
+      "imageSha256": "aa0b6365122f0ca4438bc36275365f395f8d33ce8111b7fac24dee1632616e17",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Fair, natural satin finish",
+          "eyes": "Subtle neutral eyeshadow with delicate dark eyeliner along the upper lashline",
+          "brows": "Softly filled light brown brows, partially concealed by fringe",
+          "cheeks": "Soft pink blush placed gently on the high cheek area",
+          "lips": "Rosy-coral lip color with a soft satin finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 340
+        },
+        "costUsd": 0.002291,
+        "latencyMs": 6662
+      },
+      "analyzedAt": "2026-09-22T07:48:38.200Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260909_DdEdnnMS9T2_02.jpg",
+      "imageSha256": "637249c58987235df212c9ac68092bd9e86c573780850a8f4fddc8c5720aa5fa",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "light",
+        "elements": {
+          "base": "Smooth, radiant finish with light to medium coverage and an even, fair tone.",
+          "eyes": "Subtle wash of neutral eyeshadow across the lids, thin black winged eyeliner extending slightly outward, and lightly defined upper lashes.",
+          "brows": "Softly filled, straight brows in a warm medium-brown shade.",
+          "cheeks": "Delicate peach-pink blush blended softly across the apples of the cheeks.",
+          "lips": "Soft rose-pink lip color with a satin-to-glossy hydrating finish."
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 599
+        },
+        "costUsd": 0.003263,
+        "latencyMs": 7666
+      },
+      "analyzedAt": "2026-09-22T07:48:39.878Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260916_DdWZT2cyikv_01.jpg",
+      "imageSha256": "53d65dc0dd2f78e6a62274040d8b9618c021c8baf8753a673ab2254a8ea6ffe0",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, porcelain-like semi-matte finish with an even, airbrushed texture.",
+          "eyes": "Soft neutral peachy-beige eyeshadow over the mobile lid and lower lash line to define the aegyo-sal; fine black eyeliner along the upper lash line ending in a soft wing; dramatic manga-style spiky false lashes on the top with separated, emphasized lower lashes.",
+          "brows": "Softly filled, natural straight brows in a medium brown tone matching the hair.",
+          "cheeks": "Prominent, diffused baby-pink blush applied directly beneath the eyes and across the apples of the cheeks, with a light touch on the tip of the nose.",
+          "lips": "Velvet-matte gradient lips in a muted rose-pink shade, concentrated towards the center with softly blurred outer borders."
+        },
+        "usage": {
+          "inputTokens": 1341,
+          "outputTokens": 520
+        },
+        "costUsd": 0.002956,
+        "latencyMs": 6922
+      },
+      "analyzedAt": "2026-09-22T07:48:40.918Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260920_Ddgy2-7yelq_01.jpg",
+      "imageSha256": "00967451a07d9e21a22447928ab975712db4f38da9d331f961c93bb667e8d544",
+      "analysis": {
+        "faceVisibility": "clear",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, even-toned satin-matte finish with gentle radiance on the high points of the face",
+          "eyes": "Soft peachy-pink wash across the upper lid and aegyo sal area; fine black liquid liner with a slight downward/straight wing; curled black mascara defining the upper lashes",
+          "brows": "Straight, soft-arched shape filled in with a warm light brown tone",
+          "cheeks": "Cool-toned soft pink blush concentrated high on the apples of the cheeks and blended toward the under-eye area; soft highlight on the cheekbone",
+          "lips": "Muted rosy-pink lip with a soft gradient center and a glossy, hydrated finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 525
+        },
+        "costUsd": 0.002985,
+        "latencyMs": 7375
+      },
+      "analyzedAt": "2026-09-22T07:48:45.709Z"
+    },
+    {
+      "file": "tori_nakasu_shion/20260920_Ddgy3FjyLTg_02.jpg",
+      "imageSha256": "a6b1f19931d0dc27a6380f85e11b858260fafe41e0b400163b871abbe04a772f",
+      "analysis": {
+        "faceVisibility": "small",
+        "intensity": "medium",
+        "elements": {
+          "base": "Smooth, porcelain finish with an even, soft-matte look",
+          "eyes": "Soft neutral peach or light pink wash of shadow, delicate thin black winged eyeliner, and curled, defined upper lashes",
+          "brows": "Softly filled straight brow in a medium brown shade",
+          "cheeks": "Soft peachy-pink blush focused on the upper cheekbones, paired with subtle highlight",
+          "lips": "Muted rosy-peach tint with a softly blended edge and semi-gloss finish"
+        },
+        "usage": {
+          "inputTokens": 1355,
+          "outputTokens": 567
+        },
+        "costUsd": 0.003143,
+        "latencyMs": 6130
+      },
+      "analyzedAt": "2026-09-22T07:48:46.149Z"
+    }
+  ],
+  "synthesis": {
+    "styleName": "Soft Peach Doll Radiance",
+    "intensity": "medium",
+    "commonElements": {
+      "base": "Smooth porcelain skin with medium coverage, a luminous satin finish, and delicate pinpoint highlighting on the bridge and tip of the nose.",
+      "eyes": "Soft peachy-beige eyeshadow wash paired with a champagne shimmer aegyo-sal, a thin black winged liner, and curled, separated doll-like lashes.",
+      "brows": "Straight to softly arched brows filled with warm light-to-medium brown powder for a soft-focus, diffused finish.",
+      "cheeks": "Soft peachy-pink blush placed high on the apples directly under the eyes and blended gently outward.",
+      "lips": "High-shine glossy gradient lip in a rose-coral shade with pigment concentrated at the center and softly blurred outer edges."
+    },
+    "varianceNotes": [
+      "Skin finish ranged between high-shine dewy glass skin and soft-matte porcelain; a smooth luminous satin finish represents the shared median.",
+      "Winged eyeliner angle fluctuated between a downward-angled/horizontal puppy-eye flick and a subtle upward wing.",
+      "Eyelash intensity varied from lightly coated natural lashes to distinct manga-style separated clump falsies.",
+      "Lip and blush tonality split between cool-toned baby pink/berry and warm coral/terracotta; warm peachy-pink and rose-coral formed the clear majority.",
+      "Lip finish was occasionally velvety satin or soft matte, but high-shine gloss was the predominant choice."
+    ],
+    "instruction": "Makeup style: Soft Peach Doll Radiance. Apply an even, medium-coverage porcelain foundation with a smooth satin finish and subtle highlighter along the bridge and tip of the nose. Apply a soft wash of peachy-beige eyeshadow over the lids, and add pearlescent champagne shimmer to highlight the aegyo-sal with soft under-eye contouring. Apply a fine black liquid eyeliner along the upper lash line ending in a subtle, delicate outer wing. Add curled, separated doll-like upper lashes and light lower lash mascara. Apply warm light-brown powder to softly fill straight brows with diffused edges. Apply peachy-pink blush high on the apples directly beneath the eyes, blending softly outward. Apply a glossy rose-coral lip tint with color concentrated at the center and blurred edges.",
+    "noteJa": "メイクスタイル：ソフトピーチ・ドールラディアンス。なめらかなサテンフィニッシュの均一なミディアムカバレッジのポーセリンファンデーションを塗り、鼻筋と鼻先に繊細なハイライトを加えます。まぶた全体に柔らかなピーチベージュのアイシャドウを広げ、下まぶたの涙袋にはパール感のあるシャンパンシマーと控えめな影色のコントゥアを加えます。上まつげのキワに沿って細いブラックのリキッドアイライナーを引き、目尻に繊細なハネをわずかに加えます。カールさせて束感を出した上まつげと、下まつげには軽めのマスカラを加えます。温かみのあるライトブラウンのパウダーを塗り、輪郭をぼかしたナチュラルなストレート眉にふんわりと仕上げます。目のすぐ下の高めの位置にピーチピンクのチークを塗り、外側に向かってふんわりとなじませます。唇の中央に色が濃く出るようグラデーション状にローズコーラルのリップティントを塗り、輪郭をぼかして高光沢なグロスで仕上げます。",
+    "basedOn": 84,
+    "usage": {
+      "inputTokens": 14186,
+      "outputTokens": 3234
+    },
+    "costUsd": 0.022767,
+    "latencyMs": 15491,
+    "synthesizedAt": "2026-09-22T07:49:01.647Z"
+  }
+}

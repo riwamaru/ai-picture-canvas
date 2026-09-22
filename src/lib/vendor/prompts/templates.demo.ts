@@ -53,6 +53,44 @@ export const DEMO_TEMPLATES: readonly Template[] = Object.freeze([
     noteJa:
       "韓国風トレンドメイク。みずみずしいツヤ肌ベース、平行のやわらかい眉、頬の高い位置にコーラルピンクのチーク、内側から外へのグラデーションリップ、ツヤのある唇。",
   }),
+  /**
+   * ★ 店舗の参考写真から起こした「キャバ嬢風メイク(標準)」（2026-09-22・委託者指示）。
+   *
+   * 店舗 4 アカウントの投稿写真 121 枚を `npm run makeup:style` で解析し、
+   * 顔がはっきり写った 84 枚の共通項を 1 本に統合した文面を、人が読んで直したもの。
+   * 根拠は samples/makeup/style-analysis.kyabajo_standard.json（写真ごとの要素と統合案）。
+   *
+   * 直した点：
+   *   - 「porcelain（陶器のように白い肌）」→ 肌色の変更を誘発するので「本人の肌色のまま」に
+   *   - 人物の印象を述べる語（doll-like 等）を削除。メイクの製品・色・置き方だけにする
+   *
+   * PoC（../../../../../poc の S-13）で検証済み。文面は PoC 側の
+   * prompts/templates.ts の makeup.kyabajo_standard と同一に保つ（検証した文面をそのまま載せる）。
+   */
+  Object.freeze({
+    id: "makeup.kyabajo_standard",
+    categoryId: "makeup" as CategoryId,
+    labelJa: "キャバ嬢風メイク(標準)",
+    instruction:
+      "Makeup style: soft peach glow, polished evening look. " +
+      "Apply an even, medium-coverage base in the person's own skin tone with a smooth, luminous satin finish, " +
+      "and a fine highlight along the bridge and tip of the nose. " +
+      "Apply a soft wash of peachy-beige eyeshadow over the lids; add champagne shimmer on the under-eye aegyo-sal with a faint shadow line beneath it; " +
+      "draw a thin black liquid liner along the upper lash line ending in a small, delicate outer wing; " +
+      "add curled, separated, lengthened upper lashes and light mascara on the lower lashes. " +
+      "Fill the brows into a straight, softly diffused shape with warm light-brown powder. " +
+      "Apply peachy-pink blush high on the cheeks just below the eyes, blended outward. " +
+      "Apply a glossy rose-coral gradient lip with the color concentrated at the center and softly blurred edges.",
+    noteJa:
+      "メイクの方向性：ソフトピーチのツヤ感、きちんと整えた夜向けの仕上がり。" +
+      "本人の肌色のまま、ミディアムカバーで均一に整えたなめらかなツヤのサテン肌にし、鼻筋と鼻先に細くハイライト。" +
+      "まぶた全体に淡いピーチベージュのアイシャドウ、涙袋にシャンパン色のパールとその下に薄い影のライン、" +
+      "上まつげのキワに細い黒のリキッドライナーを引いて目尻に小さく繊細なハネ、" +
+      "上まつげはカールさせて束を分けて長さを出し、下まつげには軽くマスカラ。" +
+      "眉は温かみのあるライトブラウンのパウダーで、輪郭をぼかした平行気味の形に埋める。" +
+      "チークはピーチピンクを目のすぐ下の高い位置に置いて外側へぼかす。" +
+      "リップはツヤのあるローズコーラルのグラデーションで、中央に色を集めて輪郭をぼかす。",
+  }),
 
   // ── 背景 ──
   Object.freeze({

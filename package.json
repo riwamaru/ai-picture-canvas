@@ -10,7 +10,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "makeup:analyze": "npx tsx --env-file=.env.local scripts/analyze-makeup-samples.ts",
+    "makeup:style": "npx tsx --env-file=.env.local scripts/analyze-makeup-style.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

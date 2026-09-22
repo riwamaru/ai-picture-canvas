@@ -118,6 +118,40 @@ const PRICE_TABLE: readonly ModelPricing[] = [
   },
 ];
 
+/**
+ * 文章を返すモデル（画像を作らない）の単価表。
+ * メイクの見本の解析（models.ts の MAKEUP_ANALYSIS_MODEL）が使う。
+ *
+ * gemini-3.8-flash：入力（文字・画像）$0.75 / 1M、出力 $3.75 / 1M
+ *   （2026-12-31 まで。2027-01-01 から $1.50 / $7.50 に上がると価格表に予告あり。参照日 2026-09-21）
+ */
+const TEXT_PRICE_TABLE: readonly {
+  provider: string;
+  modelId: string;
+  inputPerMillion: number;
+  outputPerMillion: number;
+}[] = [
+  { provider: "google", modelId: "gemini-3.8-flash", inputPerMillion: 0.75, outputPerMillion: 3.75 },
+];
+
+/**
+ * 文章モデルの実コスト（API 応答の usageMetadata から）。
+ *
+ * @throws {UnknownModelPricingError} 単価未登録のモデル
+ */
+export function costFromTextUsage(
+  provider: string,
+  modelId: string,
+  usage: { inputTokens: number; outputTokens: number },
+): number {
+  const pricing = TEXT_PRICE_TABLE.find((p) => p.provider === provider && p.modelId === modelId);
+  if (!pricing) throw new UnknownModelPricingError(provider, modelId);
+  return round6(
+    (usage.inputTokens * pricing.inputPerMillion + usage.outputTokens * pricing.outputPerMillion) /
+      1_000_000,
+  );
+}
+
 function lookup(provider: string, modelId: string): ModelPricing {
   const found = PRICE_TABLE.find((p) => p.provider === provider && p.modelId === modelId);
   if (!found) throw new UnknownModelPricingError(provider, modelId);

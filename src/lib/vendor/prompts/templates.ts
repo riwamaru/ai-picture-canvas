@@ -33,6 +33,7 @@
 
 import type { CategoryId, MakeupStrength } from "./categories";
 import { DEMO_TEMPLATES } from "./templates.demo";
+import { MAKEUP_SAMPLE_TEMPLATES } from "./templates.makeup-samples";
 
 export type Template = {
   readonly id: string;
@@ -324,7 +325,13 @@ export const DEFAULT_TEMPLATE_ID: Partial<Record<CategoryId, string>> = Object.f
  * 確定 UI 側の選択肢を templates.demo.ts に置いて、ここで連結する。
  * 検索・検証（requireTemplate）は両方を対象にする。
  */
-const ALL_TEMPLATES: readonly Template[] = Object.freeze([...TEMPLATES, ...DEMO_TEMPLATES]);
+// ★ 店舗のメイク見本から起こしたテンプレート（委託者指示・2026-09-21）も連結する。
+//   scripts/analyze-makeup-samples.ts が写真から起こし、人が直してから本番へ載せる。
+const ALL_TEMPLATES: readonly Template[] = Object.freeze([
+  ...TEMPLATES,
+  ...DEMO_TEMPLATES,
+  ...MAKEUP_SAMPLE_TEMPLATES,
+]);
 
 const BY_ID = new Map(ALL_TEMPLATES.map((t) => [t.id, t]));
 

@@ -448,6 +448,40 @@ seed 指定は OpenAI・Google のいずれも非対応のため、案 1 の差�
 
 ---
 
+## メイクの見本からテンプレートを起こす（委託者指示・2026-09-21）
+
+「既存の画像を学習してプロンプトをブラッシュアップしたい」への対応。
+**アプリ内の機能ではなく、開発時に行う作業**として組んである（委託者の選択）。
+
+1. 店舗のメイク見本写真を [`samples/makeup/`](samples/makeup/README.md) に `01_名前.jpg` の形式で置く
+2. `npm run makeup:analyze` を実行する
+   → Gemini（`gemini-3.8-flash`・文章モデル）が写真を読み、メイクの要素（ベース・目元・眉・頬・唇）を
+   英語の指示文と日本語の説明に起こし、[`templates.makeup-samples.ts`](src/lib/vendor/prompts/templates.makeup-samples.ts) を書き出す
+3. 起こした文を人が読んで直す（`samples/makeup/analysis.json` を直して `-- --dry-run` で書き出し直す）
+4. デプロイすると、メイクカード「テンプレートから選択」に既存 3 つのあとに並ぶ
+
+- 写真は生成 API へ送らない。本番に載るのは起こした指示文だけ（メイクは種別 A のまま）
+- 写真は git に入れない。入るのは解析の記録（文字だけ）と生成された TS
+- 解析は 1 枚 $0.01 未満・約 10 秒。写真が同じなら再実行しても API を呼ばない
+- 解析の指示は「メイクだけを記述する」ことに限り、人物の造作・体型・年齢に触れさせない。
+  それでも**人が読んでから載せる**（仕様書 4.5.3「提示する表現をあらかじめ自社で検証・管理できる」）
+
+### 多数の写真から「標準」を 1 本に起こす（2026-09-22・キャバ嬢風メイク(標準)）
+
+「メイク参考画像（店舗 4 アカウントの投稿 121 枚）を参考に新プロンプトを作る」への対応。
+1 枚 → 1 テンプレートの `makeup:analyze` とは別に、**多数の写真 → 共通項 1 本**の `npm run makeup:style` を追加した
+（[`scripts/analyze-makeup-style.ts`](scripts/analyze-makeup-style.ts)・手順は [`samples/makeup/README.md`](samples/makeup/README.md)）。
+
+1. 写真ごとにメイク要素を起こす（顔が小さい・隠れている写真は除外）→ 84 枚が根拠
+2. 要素の一覧をもう 1 回モデルへ渡し、個人差を外した共通のメイクに統合する
+3. 人が読んで直す（「白い肌」など肌色に触れる語を除いた）
+4. **PoC の S-13 で検証してから** [`templates.demo.ts`](src/lib/vendor/prompts/templates.demo.ts) の `makeup.kyabajo_standard` に載せた
+
+記録は [`samples/makeup/style-analysis.kyabajo_standard.json`](samples/makeup/style-analysis.kyabajo_standard.json)。
+写真は生成 API へ送っていない。本番に載るのは統合した指示文だけ。
+
+---
+
 ## セットアップ
 
 ### 1. Supabase（作成済み）

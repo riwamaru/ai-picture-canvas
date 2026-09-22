@@ -7,6 +7,7 @@ import {
 } from "./vendor/prompts/categories";
 import { TEMPLATE_VERSION } from "./vendor/prompts/templates";
 import { DEMO_TEMPLATES } from "./vendor/prompts/templates.demo";
+import { MAKEUP_SAMPLE_TEMPLATES } from "./vendor/prompts/templates.makeup-samples";
 
 /**
  * 画面に出す選択肢。
@@ -160,7 +161,9 @@ export function buildCatalog(): Catalog {
         selectLabelJa: display.selectLabelJa,
         freeTextLabelJa: display.freeTextLabelJa,
         freeTextPlaceholder: display.freeTextPlaceholder,
-        templates: DEMO_TEMPLATES.filter((t) => t.categoryId === id).map((t) => ({
+        // ★ メイクだけ、店舗の見本から起こしたテンプレートを確定 UI の 3 つのあとに並べる
+        //   （委託者指示・2026-09-21。scripts/analyze-makeup-samples.ts が生成）。
+        templates: [...DEMO_TEMPLATES, ...MAKEUP_SAMPLE_TEMPLATES].filter((t) => t.categoryId === id).map((t) => ({
           id: t.id,
           labelJa: t.labelJa,
           noteJa: t.noteJa,
