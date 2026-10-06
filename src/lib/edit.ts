@@ -1,10 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createProvider, estimateOne, type ProviderKeys } from "./generate";
-import { DEMO_RESOLUTION, PER_CALL_TIMEOUT_MS, type ProviderName } from "./models";
+import {
+  TIME_BUDGET_EXHAUSTED,
+  attemptColumns,
+  createProvider,
+  estimateOne,
+  fallbackPolicyFrom,
+  providerKeysFromEnv,
+  providerOrder,
+  type FailedAttempt,
+} from "./generate";
+import {
+  DEMO_RESOLUTION,
+  FUNCTION_BUDGET_MS,
+  callTimeoutMs,
+  isProviderName,
+  type ProviderName,
+} from "./models";
 import { classifyError } from "./vendor/providers/errors";
 import { promptHash } from "./vendor/prompts/hash";
-import { IDENTITY_GUARD_INSTRUCTION } from "./vendor/prompts/templates";
+import { IDENTITY_GUARD_INSTRUCTION, NO_MARGIN_INSTRUCTION } from "./vendor/prompts/templates";
 import { notifyJobFinished, type SlackSettings } from "./slack";
+import { trimForStorage } from "./framing";
 
 /**
  * 個別修正（機能仕様書 v2.1 F-05 逐次編集）。
@@ -69,6 +85,8 @@ export function buildEditPrompt(instruction: string): { text: string; hash: stri
     `"${instruction}"`,
     "Keep everything the instruction does not mention exactly as-is: the person, pose, framing, background, clothing, and lighting. " +
       "Do not re-compose, re-crop, re-frame, or re-shoot the scene.",
+    // 修正結果は次の修正の入力にもなる。余白を禁じないと帯が積み重なる（委託者指示・2026-09-30）
+    NO_MARGIN_INSTRUCTION,
     IDENTITY_GUARD_INSTRUCTION,
   ].join("\n");
 
@@ -168,14 +186,15 @@ export async function runEditStep(
   // ── 試す順番：入力画像を作ったプロバイダを先に（見た目の連続性のため） ──
   const { data: limits } = await admin
     .from("demo_limits")
-    .select("fallback_enabled, fallback_on_policy, primary_provider, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images")
+    .select("fallback_enabled, fallback_on_policy, primary_provider, fallback_provider, second_fallback_provider, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images")
     .eq("id", true)
     .maybeSingle();
-  const first: ProviderName = source.provider ?? ((limits?.primary_provider as ProviderName | undefined) ?? "openai");
-  const second: ProviderName = first === "openai" ? "google" : "openai";
-  const chain: ProviderName[] = limits?.fallback_enabled === false ? [first] : [first, second];
+  // 入力画像を作ったプロバイダを先頭に、残りは設定の順（既定 OpenAI → Gemini → Grok）
+  const policy = fallbackPolicyFrom(limits);
+  const first: ProviderName = isProviderName(source.provider) ? source.provider : policy.primary;
+  const chain: ProviderName[] = providerOrder(policy, first);
 
-  const keys: ProviderKeys = { openai: process.env.OPENAI_API_KEY, google: process.env.GEMINI_API_KEY };
+  const keys = providerKeysFromEnv();
   const usable = chain.filter((name) => createProvider(name, keys) !== null);
   if (usable.length === 0) return { ok: false, reason: "failed", message: "画像生成の API キーが設定されていません。" };
 
@@ -229,14 +248,43 @@ export async function runEditStep(
   const sourceBytes = new Uint8Array(await file.arrayBuffer());
 
   const startedAt = Date.now();
-  let attempted: { provider: ProviderName; kind: string; detail: string } | null = null;
+  const trail: FailedAttempt[] = [];
+  // 関数上限（300 秒）の内側で打ち切るための締め切り（models.ts の FUNCTION_BUDGET_MS）
+  const deadline = startedAt + FUNCTION_BUDGET_MS;
 
   for (let index = 0; index < usable.length; index += 1) {
     const name = usable[index]!;
     const provider = createProvider(name, keys)!;
     const isLast = index === usable.length - 1;
+
+    // ★ 残り時間が足りなければ次を呼ばずに打ち切る（関数ごと落ちると精算されない）
+    const timeoutMs = callTimeoutMs(deadline);
+    if (timeoutMs === null) {
+      await admin
+        .from("edit_steps")
+        .update({
+          status: "failed",
+          provider: trail.at(-1)?.provider ?? name,
+          ...attemptColumns(trail),
+          error_kind: TIME_BUDGET_EXHAUSTED.kind,
+          error_message: `${TIME_BUDGET_EXHAUSTED.code}: ${TIME_BUDGET_EXHAUSTED.detail}`,
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", stepId);
+      await settle(admin, input.userId, usageDay, perImageUsd, 0, 1);
+      await notifyEdit(admin, limits, {
+        jobId: input.jobId, email: input.email, job, mode: job.job_mode,
+        instruction, stepNo, provider: trail.at(-1)?.provider ?? name, attempted: trail[0] ?? null, costUsd: 0,
+        elapsedMs: Date.now() - startedAt, usageDay, succeeded: false, errorKind: "infra",
+      });
+      return {
+        ok: false, reason: "failed", errorKind: "infra",
+        message: "時間内に生成できませんでした（複数の AI に順に回しているうちに時間切れになりました）。もう一度お試しください。",
+      };
+    }
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PER_CALL_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const result = await provider.edit(
@@ -245,9 +293,11 @@ export async function runEditStep(
       );
 
       const resultPath = `${input.userId}/${input.jobId}/edit-${stepNo}.png`;
+      // 無地の帯を切ってから保存する。この結果が次の修正の入力にもなる（帯が積み重ならないように）
+      const editedPng = await trimForStorage(result.image, `edit-${stepNo}`);
       const { error: upError } = await admin.storage
         .from("results")
-        .upload(resultPath, Buffer.from(result.image), { contentType: "image/png", upsert: true });
+        .upload(resultPath, editedPng, { contentType: "image/png", upsert: true });
       if (upError) throw new Error(`修正結果を保存できませんでした: ${upError.message}`);
 
       await admin
@@ -255,9 +305,7 @@ export async function runEditStep(
         .update({
           status: "succeeded",
           provider: name,
-          attempted_provider: attempted?.provider ?? null,
-          attempted_error_kind: attempted?.kind ?? null,
-          attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+          ...attemptColumns(trail),
           result_path: resultPath,
           actual_cost_usd: result.estimatedCostUsd,
           latency_ms: result.latencyMs,
@@ -268,7 +316,7 @@ export async function runEditStep(
       await settle(admin, input.userId, usageDay, perImageUsd, result.estimatedCostUsd, 0);
       await notifyEdit(admin, limits, {
         jobId: input.jobId, email: input.email, job, mode: job.job_mode,
-        instruction, stepNo, provider: name, attempted, costUsd: result.estimatedCostUsd,
+        instruction, stepNo, provider: name, attempted: trail[0] ?? null, costUsd: result.estimatedCostUsd,
         elapsedMs: Date.now() - startedAt, usageDay, succeeded: true, errorKind: null,
       });
 
@@ -282,7 +330,7 @@ export async function runEditStep(
         !isLast && classified.kind !== "input" &&
         (classified.kind !== "policy" || (limits?.fallback_on_policy ?? true));
       if (canFallback) {
-        attempted = { provider: name, kind: classified.kind, detail: classified.detail };
+        trail.push({ provider: name, kind: classified.kind, detail: classified.detail });
         clearTimeout(timeout);
         continue;
       }
@@ -292,9 +340,7 @@ export async function runEditStep(
         .update({
           status: "failed",
           provider: name,
-          attempted_provider: attempted?.provider ?? null,
-          attempted_error_kind: attempted?.kind ?? null,
-          attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+          ...attemptColumns(trail),
           error_kind: classified.kind,
           error_message: `${classified.code}: ${classified.detail}`.slice(0, 2000),
           finished_at: new Date().toISOString(),
@@ -304,7 +350,7 @@ export async function runEditStep(
       await settle(admin, input.userId, usageDay, perImageUsd, 0, classified.kind === "infra" ? 1 : 0);
       await notifyEdit(admin, limits, {
         jobId: input.jobId, email: input.email, job, mode: job.job_mode,
-        instruction, stepNo, provider: name, attempted, costUsd: 0,
+        instruction, stepNo, provider: name, attempted: trail[0] ?? null, costUsd: 0,
         elapsedMs: Date.now() - startedAt, usageDay, succeeded: false, errorKind: classified.kind,
       });
 

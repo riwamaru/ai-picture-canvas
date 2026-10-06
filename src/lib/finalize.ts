@@ -1,8 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeMask, renderMaskGuide } from "./mask";
 import { buildSemanticRemovalPrompt } from "./removal";
-import { buildSlotPrompt, createProvider, estimateOne, type ProviderKeys, type Selection } from "./generate";
-import { PER_CALL_TIMEOUT_MS, type ProviderName } from "./models";
+import {
+  TIME_BUDGET_EXHAUSTED,
+  attemptColumns,
+  buildSlotPrompt,
+  createProvider,
+  estimateOne,
+  fallbackPolicyFrom,
+  providerKeysFromEnv,
+  providerOrder,
+  removalAttempts,
+  type Attempt,
+  type FailedAttempt,
+  type FallbackPolicy,
+  type Selection,
+} from "./generate";
+import { FUNCTION_BUDGET_MS, callTimeoutMs, type ProviderName } from "./models";
 import { classifyError } from "./vendor/providers/errors";
 import type { CategoryInput } from "./vendor/prompts/build";
 import type { CategoryId, MakeupStrength } from "./vendor/prompts/categories";
@@ -11,6 +25,13 @@ import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
 import type { Resolution } from "./vendor/providers/types";
 import { syncFinalToDrive, type SyncOutcome } from "./driveSync";
 import { buildEditPrompt } from "./edit";
+import {
+  compareAspect,
+  describeAspect,
+  readAspectRatio,
+  trimForStorage,
+  type AspectCheck,
+} from "./framing";
 import { trashFile } from "./drive";
 import { notifyDriveIncident } from "./slack";
 
@@ -50,6 +71,12 @@ export type FinalizeOutcome =
       latencyMs: number | null;
       /** Drive への保存結果。設定がオフなら null。 */
       drive: SyncOutcome | null;
+      /**
+       * 承認された 1 枚と確定画像の縦横比の比較（2026-10-06 追加）。
+       * status が "already"（作り直していない）のときは null。
+       * mismatch が true のとき、画面は「構図が揃っていない可能性」を出すこと。
+       */
+      aspect: AspectCheck | null;
     }
   | {
       ok: false;
@@ -81,9 +108,9 @@ type DraftRow = {
   variant_strategy: VariantStrategy;
   provider: ProviderName | null;
   edit_method: "inpaint" | "semantic_mask" | "instruct" | null;
+  /** そのドラフトの画像。「承認された 1 枚」なので、縦横比の見張りに使う。 */
+  result_path: string | null;
 };
-
-type Attempt = { provider: ProviderName; method: "inpaint" | "semantic_mask" | "instruct" };
 
 /**
  * 選んだ 1 枚を高解像度で作り直し、Drive へ入れる。
@@ -109,6 +136,9 @@ export async function finalizeJob(
     email: string;
   },
 ): Promise<FinalizeOutcome> {
+  // 関数上限（300 秒）の内側で打ち切るための締め切り。Drive への保存ぶんの余裕も含む
+  const deadline = Date.now() + FUNCTION_BUDGET_MS;
+
   const { data: job } = await admin
     .from("jobs")
     .select(
@@ -119,7 +149,9 @@ export async function finalizeJob(
 
   const { data: draft } = await admin
     .from("job_images")
-    .select("slot, status, makeup_strength, variant, variant_strategy, provider, edit_method")
+    .select(
+      "slot, status, makeup_strength, variant, variant_strategy, provider, edit_method, result_path",
+    )
     .eq("job_id", input.jobId)
     .eq("slot", input.slot)
     .maybeSingle<DraftRow>();
@@ -143,13 +175,17 @@ export async function finalizeJob(
     source_kind: "draft" | "step";
     source_slot: number | null;
     source_step_id: string | null;
+    /** その修正の結果。これが「承認された 1 枚」になるので、縦横比の見張りに使う。 */
+    result_path: string | null;
   };
   let editStep: EditStep | null = null;
   let editSourcePath: string | null = null;
   if (input.stepId) {
     const { data: step } = await admin
       .from("edit_steps")
-      .select("id, status, instruction, provider, source_kind, source_slot, source_step_id")
+      .select(
+        "id, status, instruction, provider, source_kind, source_slot, source_step_id, result_path",
+      )
       .eq("id", input.stepId)
       .eq("job_id", input.jobId)
       .maybeSingle<EditStep>();
@@ -178,6 +214,13 @@ export async function finalizeJob(
       return { ok: false, reason: "invalid", message: "修正の入力画像が見つかりません。" };
     }
   }
+
+  // ── 「承認された 1 枚」の置き場所 ──
+  //
+  // 利用者が見て選んだ画像そのものである。確定画像の構図がこれと揃っているかを
+  // 生成後に照合する（下の checkAspect）。
+  // 修正を経ている場合は、その修正の入力ではなく **結果** が承認された 1 枚になる。
+  const approvedPath: string | null = editStep ? editStep.result_path : draft.result_path;
 
   // ── 既に確定済みか ──
   //
@@ -239,6 +282,8 @@ export async function finalizeJob(
       costUsd: Number(existing.actual_cost_usd ?? 0),
       latencyMs: (existing.latency_ms as number | null) ?? null,
       drive,
+      // 作り直していないので比べる対象がない（この回の生成は起きていない）
+      aspect: null,
     };
   }
 
@@ -254,13 +299,13 @@ export async function finalizeJob(
   const { data: limits } = await admin
     .from("demo_limits")
     .select(
-      "final_resolution, fallback_enabled, fallback_on_policy, primary_provider, fallback_provider, removal_fallback_enabled, drive_enabled",
+      "final_resolution, fallback_enabled, fallback_on_policy, primary_provider, fallback_provider, second_fallback_provider, removal_fallback_enabled, drive_enabled",
     )
     .eq("id", true)
     .maybeSingle();
 
   const resolution = (limits?.final_resolution ?? "2k") as Resolution;
-  const fallbackEnabled = limits?.fallback_enabled ?? true;
+  const policy = fallbackPolicyFrom(limits);
 
   // ── 選択内容をジョブの記録から組み直す ──
   //
@@ -298,15 +343,11 @@ export async function finalizeJob(
     mode: editStep ? "normal" : job.job_mode,
     draftProvider: editStep ? editStep.provider : draft.provider,
     draftMethod: editStep ? "instruct" : draft.edit_method,
-    fallbackEnabled,
-    primary: (limits?.primary_provider ?? "openai") as ProviderName,
+    policy,
     removalFallback: limits?.removal_fallback_enabled ?? true,
   });
 
-  const keys: ProviderKeys = {
-    openai: process.env.OPENAI_API_KEY,
-    google: process.env.GEMINI_API_KEY,
-  };
+  const keys = providerKeysFromEnv();
   const usable = chain.filter((attempt) => createProvider(attempt.provider, keys) !== null);
   if (usable.length === 0) {
     return { ok: false, reason: "failed", message: "画像生成の API キーが設定されていません。" };
@@ -365,9 +406,7 @@ export async function finalizeJob(
         // 作り直しのときに前回の失敗が残らないようにする
         error_kind: null,
         error_message: null,
-        attempted_provider: null,
-        attempted_error_kind: null,
-        attempted_error_message: null,
+        ...attemptColumns([]),
       },
       { onConflict: "job_id" },
     )
@@ -411,7 +450,7 @@ export async function finalizeJob(
     references.push(new Uint8Array(bytes));
   }
 
-  // semantic masking の材料（Gemini へ回すときだけ要る）
+  // semantic masking の材料（Gemini・Grok へ回すときだけ要る）
   let maskGuide: Buffer | null = null;
   let maskRegion = null;
   if (maskPng && usable.some((a) => a.method === "semantic_mask")) {
@@ -425,20 +464,22 @@ export async function finalizeJob(
 
   const removalTemplateId = job.template_ids?.tattoo_removal;
 
+  // 材料が作れなかった semantic_mask は黙って別物を送らずに外す。
+  // ★ ループの途中で飛ばすと「最後の試行」の判定がずれるので、先に外す。
+  const runnable = usable.filter(
+    (attempt) =>
+      attempt.method !== "semantic_mask" ||
+      (maskGuide !== null && maskRegion !== null && Boolean(removalTemplateId)),
+  );
+
   // ── 生成 ──
   const startedAt = Date.now();
-  let attempted: { provider: ProviderName; kind: string; detail: string } | null = null;
+  const trail: FailedAttempt[] = [];
 
-  for (let index = 0; index < usable.length; index += 1) {
-    const { provider: name, method } = usable[index]!;
+  for (let index = 0; index < runnable.length; index += 1) {
+    const { provider: name, method } = runnable[index]!;
     const provider = createProvider(name, keys)!;
-    const isLast = index === usable.length - 1;
-
-    // 材料が作れなかった semantic_mask は黙って別物を送らずに飛ばす
-    if (method === "semantic_mask" && (!maskGuide || !maskRegion || !removalTemplateId)) {
-      if (isLast) break;
-      continue;
-    }
+    const isLast = index === runnable.length - 1;
 
     const semantic =
       method === "semantic_mask" && maskRegion && removalTemplateId
@@ -449,8 +490,33 @@ export async function finalizeJob(
           })
         : null;
 
+    // ★ 残り時間が足りなければ次を呼ばずに打ち切る（関数ごと落ちると精算されない）
+    const timeoutMs = callTimeoutMs(deadline);
+    if (timeoutMs === null) {
+      await admin
+        .from("final_images")
+        .update({
+          status: "failed",
+          provider: trail.at(-1)?.provider ?? name,
+          edit_method: method,
+          ...attemptColumns(trail),
+          error_kind: TIME_BUDGET_EXHAUSTED.kind,
+          error_message: `${TIME_BUDGET_EXHAUSTED.code}: ${TIME_BUDGET_EXHAUSTED.detail}`,
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", finalId);
+      await settle(admin, input.userId, usageDay, perImageUsd, 0, 1);
+      return {
+        ok: false,
+        reason: "failed",
+        errorKind: "infra",
+        message:
+          "時間内に確定画像を生成できませんでした（複数の AI に順に回しているうちに時間切れになりました）。もう一度お試しください。",
+      };
+    }
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PER_CALL_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const result = await provider.edit(
@@ -476,9 +542,35 @@ export async function finalizeJob(
       );
 
       const resultPath = `${input.userId}/${input.jobId}/final.png`;
+      // 無地の帯を切ってから保存する。確定画像は Drive へ送られ、そのまま掲載に使われる
+      const finalPng = await trimForStorage(result.image, "final");
+
+      // ── 承認された構図と一致しているかを見る（2026-10-06 追加） ──
+      //
+      // ★ ここで落とさない。実費はもう発生しており、画像そのものは使える見込みがある。
+      //   落として捨てるより、人が見て判断できるところまで持ち上げるほうが損が小さい。
+      //   設定の食い違い（1k と 2k の比が違う）は models.ts が読み込み時に落とすので、
+      //   ここへ来るのは「設定は正しいがモデルが別の比を返した」場合である
+      //   （Google は出力の比を自分で決めるため、起こりうる）。
+      const aspect = await checkAspect(admin, approvedPath, finalPng);
+      if (aspect.mismatch) {
+        console.error(
+          `[finalize] 確定画像の縦横比が承認された 1 枚と違います: ${describeAspect(aspect)}` +
+            ` provider=${name} resolution=${resolution} job=${input.jobId}`,
+        );
+        // 黙って流さない。Drive へ入ったものがそのまま掲載に使われるため、人へ届ける。
+        await notifyDriveIncident(admin, {
+          title: "確定画像の縦横比が承認された候補と違います",
+          detail:
+            `${describeAspect(aspect)}\n` +
+            `プロバイダ: ${name} / 解像度: ${resolution}\n` +
+            `承認された候補と構図が揃っていない可能性があります。画像を確認してください。`,
+        }).catch(() => undefined);
+      }
+
       const { error: uploadError } = await admin.storage
         .from("results")
-        .upload(resultPath, Buffer.from(result.image), {
+        .upload(resultPath, finalPng, {
           contentType: "image/png",
           upsert: true,
         });
@@ -491,9 +583,7 @@ export async function finalizeJob(
           provider: name,
           edit_method: method,
           ...(semantic ? { prompt_hash: semantic.hash } : {}),
-          attempted_provider: attempted?.provider ?? null,
-          attempted_error_kind: attempted?.kind ?? null,
-          attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+          ...attemptColumns(trail),
           result_path: resultPath,
           actual_cost_usd: result.estimatedCostUsd,
           latency_ms: result.latencyMs,
@@ -520,6 +610,7 @@ export async function finalizeJob(
         costUsd: result.estimatedCostUsd,
         latencyMs: result.latencyMs,
         drive,
+        aspect,
       };
     } catch (error) {
       const classified = classifyError(error);
@@ -530,7 +621,7 @@ export async function finalizeJob(
         (classified.kind !== "policy" || (limits?.fallback_on_policy ?? true));
 
       if (canFallback) {
-        attempted = { provider: name, kind: classified.kind, detail: classified.detail };
+        trail.push({ provider: name, kind: classified.kind, detail: classified.detail });
         clearTimeout(timeout);
         continue;
       }
@@ -541,9 +632,7 @@ export async function finalizeJob(
           status: "failed",
           provider: name,
           edit_method: method,
-          attempted_provider: attempted?.provider ?? null,
-          attempted_error_kind: attempted?.kind ?? null,
-          attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+          ...attemptColumns(trail),
           error_kind: classified.kind,
           error_message: `${classified.code}: ${classified.detail}`.slice(0, 2000),
           finished_at: new Date().toISOString(),
@@ -589,6 +678,28 @@ export async function finalizeJob(
 // 補助
 // ---------------------------------------------------------------------------
 
+/**
+ * 承認された 1 枚と確定画像の縦横比を比べる。
+ *
+ * ★ 読めなかった場合は mismatch=false を返す（分からないことを異常として扱わない）。
+ *   ここで誤検知を出すと、正常な確定にも警告が出て見張りが信用されなくなる。
+ */
+async function checkAspect(
+  admin: SupabaseClient,
+  approvedPath: string | null,
+  finalPng: Buffer,
+): Promise<AspectCheck> {
+  const finalAspect = await readAspectRatio(finalPng);
+  if (!approvedPath) return compareAspect(null, finalAspect);
+
+  const approvedBytes = await downloadFromStorage(admin, "results", approvedPath);
+  if (!approvedBytes) {
+    console.warn(`[finalize] 承認された 1 枚を取得できず、縦横比を比べられませんでした: ${approvedPath}`);
+    return compareAspect(null, finalAspect);
+  }
+  return compareAspect(await readAspectRatio(approvedBytes), finalAspect);
+}
+
 /** ジョブの記録から Selection を組み直す。生成時と同じ条件になるようにする。 */
 function rebuildSelection(job: JobRow, variantStrategy: VariantStrategy): Selection {
   const categories: Partial<Record<CategoryId, CategoryInput>> = {};
@@ -610,32 +721,34 @@ function rebuildSelection(job: JobRow, variantStrategy: VariantStrategy): Select
   };
 }
 
-/** 試す順番。ドラフトを作ったのと同じ組み合わせを先頭に置く。 */
+/**
+ * 試す順番。ドラフトを作ったのと同じ組み合わせを先頭に置き、
+ * 残りは設定の順（既定 OpenAI → Gemini → Grok）で並べる。
+ */
 function buildChain(input: {
   mode: "normal" | "removal";
   draftProvider: ProviderName | null;
   draftMethod: "inpaint" | "semantic_mask" | "instruct" | null;
-  fallbackEnabled: boolean;
-  primary: ProviderName;
+  policy: FallbackPolicy;
   removalFallback: boolean;
 }): Attempt[] {
   if (input.mode === "removal") {
+    // semantic_mask で作られたドラフトは Google か Grok。どちらかは draftProvider が持つ
+    // （2026-10-06 より前の記録は semantic_mask ＝ Google だけ）。
     const first: Attempt =
       input.draftMethod === "semantic_mask"
-        ? { provider: "google", method: "semantic_mask" }
+        ? {
+            provider:
+              input.draftProvider && input.draftProvider !== "openai" ? input.draftProvider : "google",
+            method: "semantic_mask",
+          }
         : { provider: "openai", method: "inpaint" };
-    const second: Attempt =
-      first.provider === "openai"
-        ? { provider: "google", method: "semantic_mask" }
-        : { provider: "openai", method: "inpaint" };
-    return input.removalFallback && input.fallbackEnabled ? [first, second] : [first];
+    return removalAttempts(input.policy, input.removalFallback, first);
   }
 
-  const first: ProviderName = input.draftProvider ?? input.primary;
-  const second: ProviderName = first === "openai" ? "google" : "openai";
-  const chain: Attempt[] = [{ provider: first, method: "instruct" }];
-  if (input.fallbackEnabled) chain.push({ provider: second, method: "instruct" });
-  return chain;
+  return providerOrder(input.policy, input.draftProvider ?? input.policy.primary).map(
+    (provider) => ({ provider, method: "instruct" as const }),
+  );
 }
 
 async function downloadFromStorage(

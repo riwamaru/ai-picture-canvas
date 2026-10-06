@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: images } = await supabase
     .from("job_images")
     .select(
-      "slot, makeup_strength, variant, status, provider, edit_method, attempted_provider, attempted_error_kind, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
+      "slot, makeup_strength, variant, status, provider, edit_method, attempted_provider, attempted_error_kind, attempt_trail, result_path, latency_ms, actual_cost_usd, error_kind, error_message",
     )
     .eq("job_id", id)
     .order("slot", { ascending: true });
@@ -63,6 +63,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         // 画面に「OpenAI が拒否 → Google で生成」と出すために返す。
         attemptedProvider: image.attempted_provider,
         attemptedErrorKind: image.attempted_error_kind,
+        // 3 段（OpenAI → Gemini → Grok）の経緯。画面に「OpenAI 拒否 → Google 拒否 → Grok」と出す。
+        // ★ detail（エラー原文）は返さない。画面に要るのはどこで何が起きたかだけ。
+        attemptTrail: Array.isArray(image.attempt_trail)
+          ? (image.attempt_trail as { provider: string; kind: string }[]).map((step) => ({
+              provider: step.provider,
+              kind: step.kind,
+            }))
+          : [],
         latencyMs: image.latency_ms,
         costUsd: image.actual_cost_usd === null ? null : Number(image.actual_cost_usd),
         errorKind: image.error_kind,

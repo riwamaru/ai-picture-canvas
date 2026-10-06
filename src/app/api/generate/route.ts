@@ -6,7 +6,10 @@ import { MAX_UPLOAD_BYTES, OPENAI_CONFIG } from "@/lib/models";
 import {
   buildSlotPrompt,
   buildSlotSpecs,
+  estimateOne,
+  fallbackPolicyFrom,
   processJob,
+  removalAttempts,
   reservationUnitUsd,
   type FallbackPolicy,
   type JobMode,
@@ -218,19 +221,15 @@ export async function POST(request: Request) {
     .from("demo_limits")
     // ★ 1 つの文字列リテラルで書く。連結にすると Supabase の型推論が効かなくなる。
     .select(
-      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, fallback_on_policy, removal_fallback_enabled, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images",
+      "images_per_job, variant_strategy, fallback_enabled, primary_provider, fallback_provider, second_fallback_provider, fallback_on_policy, removal_fallback_enabled, slack_enabled, slack_on_limit, slack_include_subject, daily_budget_usd, daily_max_images",
     )
     .eq("id", true)
     .single();
 
   const variantStrategy = (limits?.variant_strategy ?? "micro_delta") as VariantStrategy;
 
-  const policy: FallbackPolicy = {
-    enabled: limits?.fallback_enabled ?? true,
-    primary: (limits?.primary_provider ?? "openai") as FallbackPolicy["primary"],
-    fallback: (limits?.fallback_provider ?? "google") as FallbackPolicy["fallback"],
-    onPolicy: limits?.fallback_on_policy ?? true,
-  };
+  // 試す順番：primary → fallback → second_fallback（既定 OpenAI → Gemini → Grok）
+  const policy: FallbackPolicy = fallbackPolicyFrom(limits);
 
   const slackSettings: SlackSettings = {
     slack_enabled: limits?.slack_enabled ?? false,
@@ -242,7 +241,7 @@ export async function POST(request: Request) {
 
   // ── モード（通常加工 / 除去専用） ──
   //   除去は確定 UI の STEP 2 のカードではなく独立したコーナーとして扱う。
-  //   マスクを入力できるのは OpenAI だけで、Google へは回せないため、
+  //   マスクを入力できるのは OpenAI だけで、Google・Grok へは別方式（範囲を説明）でしか回せないため、
   //   通常加工と同じ経路に載せると「フォールバックが効くはず」という誤解を生む。
   const jobMode: JobMode = form.get("jobMode") === "removal" ? "removal" : "normal";
 
@@ -353,19 +352,16 @@ export async function POST(request: Request) {
     return fail(400, error instanceof Error ? error.message : "プロンプトを組み立てられません。");
   }
 
-  // 予約は高いほうのプロバイダの単価で押さえる（実額は settle_generation で差し替える）。
-  // 除去は OpenAI 専用なのでフォールバック分を見込まない。
-  // 予約は高いほうのプロバイダの単価で押さえる（実額は settle_generation で差し替える）。
-  // 除去も Gemini へ回すようになったので、通常加工と同じ扱いにする。
-  const removalFallsBack = (limits?.removal_fallback_enabled ?? true) && policy.enabled;
-  const perImageUsd = reservationUnitUsd(
+  // 予約は試す可能性のあるプロバイダのうち、いちばん高い単価で押さえる
+  // （実額は settle_generation で差し替える）。除去も Gemini・Grok へ回すので同じ扱いにする。
+  const perImageUsd =
     jobMode === "removal"
-      ? { ...policy, enabled: removalFallsBack, primary: "openai", fallback: "google" }
-      : policy,
-    selection.requiresMask,
-    undefined,
-    references.length,
-  );
+      ? Math.max(
+          ...removalAttempts(policy, limits?.removal_fallback_enabled ?? true).map((attempt) =>
+            estimateOne(attempt.provider, selection.requiresMask, undefined, references.length),
+          ),
+        )
+      : reservationUnitUsd(policy, selection.requiresMask, undefined, references.length);
   const reservedCostUsd = Number((perImageUsd * slots.length).toFixed(6));
 
   // ── 上限の確認（枚数ぶんまとめて） ──

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { reservationUnitUsd } from "@/lib/generate";
+import { fallbackPolicyFrom, reservationUnitUsd } from "@/lib/generate";
 
 /**
  * 左サイドバーの「当月の利用状況」・履歴一覧と、
@@ -61,23 +61,14 @@ export async function GET() {
   // ここだけ service_role で引く。返すのは真偽値 1 つで、鍵も設定値も返さない。
   const { data: limits } = await createAdminClient()
     .from("demo_limits")
-    .select("drive_enabled, final_resolution, fallback_enabled, primary_provider, fallback_provider")
+    .select("drive_enabled, final_resolution, fallback_enabled, primary_provider, fallback_provider, second_fallback_provider")
     .eq("id", true)
     .maybeSingle();
 
   // 確定ボタンに出す実費の見込み。押す前に金額を見せるために返す。
   // ★ 2k は 1 枚あたり約 $0.85 になる。黙って押させてよい額ではない。
   const finalResolution = (limits?.final_resolution ?? "2k") as "1k" | "2k";
-  const finalUnitUsd = reservationUnitUsd(
-    {
-      enabled: limits?.fallback_enabled ?? true,
-      primary: (limits?.primary_provider ?? "openai") as "openai" | "google",
-      fallback: (limits?.fallback_provider ?? "google") as "openai" | "google",
-      onPolicy: true,
-    },
-    false,
-    finalResolution,
-  );
+  const finalUnitUsd = reservationUnitUsd(fallbackPolicyFrom(limits), false, finalResolution);
 
   // 履歴の各セッションの実費（候補 ＋ 修正 ＋ 確定）。仕様書 F-07「推定コストを併せて記録する」
   const jobIds = (jobs ?? []).map((job) => job.id);

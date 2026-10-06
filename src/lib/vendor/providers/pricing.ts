@@ -116,6 +116,22 @@ const PRICE_TABLE: readonly ModelPricing[] = [
     },
     inputImageUsdEach: 0.002,
   },
+  {
+    // PoC（../poc/providers/pricing.ts）と同じ値。2026-09-30 参照・実測。
+    //   https://docs.x.ai/developers/pricing
+    provider: "grok",
+    modelId: "grok-imagine-image-2.0",
+    // 1 枚単価方式のためトークン単価は用いない
+    tokenRates: null,
+    perImage: {
+      kind: "google-resolution",
+      byResolution: { "1k": 0.04, "2k": 0.04 },
+    },
+    // ★ 2026-09-30 実測値（応答の usage.cost_in_usd_ticks、1e10 ticks = $1）。
+    //     入力画像 1 枚の編集 $0.07 → 入力 1 枚あたり $0.03
+    //   実額は応答の usage で上書きされるので、この値は予約（上限判定）にのみ使う。
+    inputImageUsdEach: 0.03,
+  },
 ];
 
 /**

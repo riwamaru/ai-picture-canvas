@@ -30,6 +30,8 @@ import {
   IDENTITY_GUARD_INSTRUCTION,
   IDENTITY_GUARD_NOTE_JA,
   MAKEUP_STRENGTH_TEMPLATES,
+  NO_MARGIN_INSTRUCTION,
+  NO_MARGIN_NOTE_JA,
   PRESERVE_PHRASES,
   PRESERVE_PHRASES_JA,
   TEMPLATE_VERSION,
@@ -289,17 +291,30 @@ export function buildPrompt(spec: PromptSpec): BuiltPrompt {
   //   1 枚は衣装と背景まで変わった。
   const preserved = CATEGORY_IDS.filter((id) => !enabled.includes(id));
   if (preserved.length > 0) {
+    // ★ アングル（framing）が有効なときは「トリミングするな」と言ってはならない
+    //   （委託者指示・2026-09-30）。アングルの指定はトリミングのし直しそのものであり、
+    //   両方を並べると相反する 2 つの指示を同時に渡すことになる。
+    const framingOn = enabled.includes("framing");
     lines.push(
       `Apply the change above to the source photograph and nothing else. ` +
         `Keep exactly as-is: ${preserved.map((id) => PRESERVE_PHRASES[id]).join("; ")}. ` +
-        `Do not re-compose, re-crop, re-frame, or re-shoot the scene.`,
+        (framingOn
+          ? `Change the crop only as the framing instruction above requires; do not otherwise re-compose or re-shoot the scene.`
+          : `Do not re-compose, re-crop, re-frame, or re-shoot the scene.`),
     );
     notes.push(
       `上記の変更だけを元画像に適用する。それ以外は元のまま保つ` +
         `（${preserved.map((id) => PRESERVE_PHRASES_JA[id]).join("／")}）。` +
-        `構図の作り直し・トリミング変更・撮り直しは行わない。`,
+        (framingOn
+          ? `トリミングは上のアングル指定に必要な範囲だけ変える。それ以外の構図の作り直し・撮り直しは行わない。`
+          : `構図の作り直し・トリミング変更・撮り直しは行わない。`),
     );
   }
+
+  // 出力の余白の禁止（委託者指示・2026-09-30）。
+  // 編集内容ではなく出力形式の要求なので、保持の指示より後、本人性の直前に置く。
+  lines.push(NO_MARGIN_INSTRUCTION);
+  notes.push(NO_MARGIN_NOTE_JA);
 
   // 本人性の保持は最後に置く（最後の指示ほど効きやすいため）
   lines.push(IDENTITY_GUARD_INSTRUCTION);
@@ -350,6 +365,8 @@ function labelEn(id: CategoryId): string {
       return "Hairstyle";
     case "pose":
       return "Pose";
+    case "framing":
+      return "Framing";
     case "mood":
       return "Mood";
     case "tattoo_removal":

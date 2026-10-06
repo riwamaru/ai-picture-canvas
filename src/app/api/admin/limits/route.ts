@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { envAdmins, requireAdmin } from "@/lib/auth";
 import { diagnoseWebhook, isSlackConfigured } from "@/lib/slack";
+import { PROVIDER_ENV_KEY, PROVIDER_NAMES, isProviderName } from "@/lib/models";
 
 /**
  * 上限設定（demo_limits）の読み書き。ADMIN_EMAILS の人だけ。
@@ -59,6 +60,11 @@ export async function GET() {
       diagnosis: diagnoseWebhook(),
       deliveries: deliveries ?? [],
     },
+    // 各プロバイダの API キーが設定されているか（真偽値だけ。キーそのものは返さない）。
+    // 未設定のプロバイダはフォールバックの順番から黙って外れるので、画面で気づけるようにする。
+    providerKeys: Object.fromEntries(
+      PROVIDER_NAMES.map((name) => [name, Boolean(process.env[PROVIDER_ENV_KEY[name]])]),
+    ),
   });
 }
 
@@ -94,16 +100,18 @@ export async function PATCH(request: Request) {
     patch.variant_strategy = body.variant_strategy;
   }
 
-  // ── フォールバック（OpenAI → Google） ──
+  // ── フォールバック（OpenAI → Google → Grok） ──
   if (typeof body.fallback_enabled === "boolean") patch.fallback_enabled = body.fallback_enabled;
   if (typeof body.fallback_on_policy === "boolean") {
     patch.fallback_on_policy = body.fallback_on_policy;
   }
-  if (body.primary_provider === "openai" || body.primary_provider === "google") {
-    patch.primary_provider = body.primary_provider;
-  }
-  if (body.fallback_provider === "openai" || body.fallback_provider === "google") {
-    patch.fallback_provider = body.fallback_provider;
+  if (isProviderName(body.primary_provider)) patch.primary_provider = body.primary_provider;
+  if (isProviderName(body.fallback_provider)) patch.fallback_provider = body.fallback_provider;
+  // null ＝「2 段で止める」。キーが無いときは触らない（undefined と null を混同しない）
+  if ("second_fallback_provider" in body) {
+    if (body.second_fallback_provider === null || isProviderName(body.second_fallback_provider)) {
+      patch.second_fallback_provider = body.second_fallback_provider;
+    }
   }
 
   // ── Slack 通知 ──

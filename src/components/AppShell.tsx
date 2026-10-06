@@ -12,15 +12,20 @@ import type { MakeupStrength } from "@/lib/catalog";
  * 構造・クラス名・文言はモックのまま。中身を実データに差し替えてある。
  */
 
+type Provider = "openai" | "google" | "grok";
+
 type Slot = {
   slot: number;
   makeupStrength: MakeupStrength;
   variant: number;
   status: "queued" | "running" | "succeeded" | "failed";
-  provider: "openai" | "google" | null;
+  provider: Provider | null;
   editMethod: "inpaint" | "semantic_mask" | "instruct" | null;
-  attemptedProvider: "openai" | "google" | null;
+  /** 最初に失敗したプロバイダ（2 段のときと同じ意味）。 */
+  attemptedProvider: Provider | null;
   attemptedErrorKind: string | null;
+  /** 先に試して失敗したプロバイダを順に（OpenAI → Gemini → Grok の 3 段の経緯）。 */
+  attemptTrail: { provider: Provider; kind: string }[];
   latencyMs: number | null;
   costUsd: number | null;
   errorKind: string | null;
@@ -37,7 +42,7 @@ type FinalImage = {
   sourceStepId: string | null;
   status: "queued" | "running" | "succeeded" | "failed";
   resolution: "1k" | "2k";
-  provider: "openai" | "google" | null;
+  provider: Provider | null;
   editMethod: "inpaint" | "semantic_mask" | "instruct" | null;
   costUsd: number | null;
   latencyMs: number | null;
@@ -58,8 +63,8 @@ type EditStep = {
   sourceSlot: number | null;
   instruction: string;
   status: "queued" | "running" | "succeeded" | "failed";
-  provider: "openai" | "google" | null;
-  attemptedProvider: "openai" | "google" | null;
+  provider: Provider | null;
+  attemptedProvider: Provider | null;
   costUsd: number | null;
   latencyMs: number | null;
   errorKind: string | null;
@@ -116,9 +121,17 @@ type SessionData = {
 };
 
 /** チャット・バッジで使う短い表示名。 */
-const PROVIDER_LABEL_SHORT: Record<"openai" | "google", string> = {
+const PROVIDER_LABEL_SHORT: Record<Provider, string> = {
   openai: "OpenAI",
   google: "Google（Gemini）",
+  grok: "xAI（Grok）",
+};
+
+/** 候補カードのバッジに出す、さらに短い表示名。 */
+const PROVIDER_BADGE: Record<Provider, string> = {
+  openai: "OpenAI",
+  google: "Google",
+  grok: "Grok",
 };
 
 /** そのスロットが確定済みか。 */
@@ -703,7 +716,7 @@ export function AppShell({
         ? " タトゥー除去はマスク領域のみをインペインティング修復しています（マスク外は不変）。"
         : "";
 
-    // OpenAI が拒否して Google が引き受けた枚数（フォールバックの実績）
+    // 先に試した AI が断り、別の AI が引き受けた枚数（フォールバックの実績）
     const fellBack = finished.filter(
       (s) => s.status === "succeeded" && s.attemptedProvider !== null,
     ).length;
@@ -717,7 +730,13 @@ export function AppShell({
             const base = `除去を ${finished.length} 枚実行しました。成功 ${ok} 枚。`;
             return semantic > 0
               ? base +
-                  `うち ${semantic} 枚は OpenAI が受け付けなかったため、Google（Gemini）で範囲を目印と文章で伝える方式で作っています。` +
+                  `うち ${semantic} 枚は OpenAI が受け付けなかったため、${[
+                    ...new Set(
+                      finished
+                        .filter((s) => s.status === "succeeded" && s.editMethod === "semantic_mask" && s.provider)
+                        .map((s) => PROVIDER_LABEL_SHORT[s.provider!]),
+                    ),
+                  ].join("・")}で範囲を目印と文章で伝える方式で作っています。` +
                   `この方式ではマスク外が変わらない保証がないので、元画像と見比べてください。`
               : base + "マスク領域のみを修復し、マスク外は変更していません。";
           })()
@@ -738,7 +757,16 @@ export function AppShell({
           : byPolicy === 0
             ? "エラーになったため"
             : `拒否・エラーになったため（うち拒否 ${byPolicy} 枚）`;
-      text += ` うち ${fellBack} 枚は ${PROVIDER_LABEL_SHORT[finished.find((s) => s.attemptedProvider)!.attemptedProvider!]}で${reason}、${PROVIDER_LABEL_SHORT[finished.find((s) => s.attemptedProvider)!.provider ?? "google"]}で生成しています。`;
+      // 3 段（OpenAI → Gemini → Grok）になったので、引き受けた先ごとに数えて言う
+      const byProvider = new Map<Provider, number>();
+      for (const s of finished) {
+        if (s.status !== "succeeded" || !s.attemptedProvider || !s.provider) continue;
+        byProvider.set(s.provider, (byProvider.get(s.provider) ?? 0) + 1);
+      }
+      const takers = [...byProvider.entries()]
+        .map(([name, count]) => `${PROVIDER_LABEL_SHORT[name]} ${count} 枚`)
+        .join("・");
+      text += ` うち ${fellBack} 枚は ${PROVIDER_LABEL_SHORT[finished.find((s) => s.attemptedProvider)!.attemptedProvider!]}で${reason}、別の AI で生成しています（${takers}）。`;
     }
     if (policy > 0) {
       text +=
@@ -979,7 +1007,7 @@ export function AppShell({
         stepNo?: number;
         chainLength?: number;
         warning?: string | null;
-        provider?: "openai" | "google";
+        provider?: Provider;
         costUsd?: number;
         latencyMs?: number;
         url?: string | null;
@@ -1165,6 +1193,7 @@ export function AppShell({
         message?: string;
         reason?: string;
         drive?: { ok: boolean; viewUrl: string | null } | null;
+        aspectMismatch?: boolean;
       } | null;
 
       if (!data) {
@@ -1177,6 +1206,15 @@ export function AppShell({
       }
 
       pushChat("assistant", data.message ?? "確定しました。");
+      // 構図のずれは警告として別の行で出す（成功の文に混ぜると読み飛ばされる）。
+      // 確定画像はそのまま掲載に使われるため、気づけることを優先する。
+      if (data.aspectMismatch) {
+        pushChat(
+          "warn",
+          "確定画像の縦横比が、選んだ候補と揃っていません。構図が変わっている可能性があります。" +
+            "掲載に使う前に画像を確認してください。",
+        );
+      }
       // 記録は DB を正とする。作り直した画像・Drive の状態はポーリングで取り直す。
       await refreshJob();
       void reloadSession();
@@ -1631,6 +1669,18 @@ export function AppShell({
                       </div>
                     )}
 
+                    {category.id === "framing" && (
+                      <div className="make-notice">
+                        <i className="fa-solid fa-crop-simple" />
+                        <div>
+                          画角（どこまで写すか）だけを変えます。姿勢はポーズカードの担当です。
+                          <strong>元の写真に写っていない範囲は AI が作り出すことになる</strong>ため、
+                          バストアップの写真から「全身」のように引いた指定は、脚や足元が実物と違って出ます。
+                          元の写真より寄せる方向（全身 → チェストアップなど）が確実です。
+                        </div>
+                      </div>
+                    )}
+
                     {category.acceptsReferences && (
                       <div className="input-group full-width">
                         <label>
@@ -1872,7 +1922,7 @@ export function AppShell({
                     // どのプロバイダが作ったか（フォールバックした場合は経緯も）
                     const providerBadge = slot.provider ? (
                       <span className={`provider-badge ${slot.provider}`}>
-                        {slot.provider === "openai" ? "OpenAI" : "Google"}
+                        {PROVIDER_BADGE[slot.provider]}
                       </span>
                     ) : null;
                     // 除去のとき、どちらの方式で作られたかを示す。
@@ -1892,12 +1942,25 @@ export function AppShell({
                         </span>
                       ) : null;
 
-                    const fallbackBadge = slot.attemptedProvider ? (
-                      <span className="provider-badge fallback" title="先に試して失敗したプロバイダ">
-                        {slot.attemptedProvider === "openai" ? "OpenAI" : "Google"}
-                        {slot.attemptedErrorKind === "policy" ? " 拒否" : " 失敗"} →
-                      </span>
-                    ) : null;
+                    // 3 段の経緯（例：OpenAI 拒否 → Google 拒否 →）。
+                    // attempt_trail が無い古い記録は attempted_provider の 1 段だけを出す。
+                    const trail =
+                      slot.attemptTrail.length > 0
+                        ? slot.attemptTrail
+                        : slot.attemptedProvider
+                          ? [{ provider: slot.attemptedProvider, kind: slot.attemptedErrorKind ?? "" }]
+                          : [];
+                    const fallbackBadge =
+                      trail.length > 0 ? (
+                        <span className="provider-badge fallback" title="先に試して失敗したプロバイダ">
+                          {trail
+                            .map(
+                              (step) =>
+                                `${PROVIDER_BADGE[step.provider] ?? step.provider}${step.kind === "policy" ? " 拒否" : " 失敗"} →`,
+                            )
+                            .join(" ")}
+                        </span>
+                      ) : null;
 
                     if (slot.status === "queued") {
                       return (

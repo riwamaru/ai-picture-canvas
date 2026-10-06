@@ -20,6 +20,8 @@ import { InfraError } from "./errors";
 export const ALLOWED_HOSTS: readonly string[] = [
   "api.openai.com",
   "generativelanguage.googleapis.com",
+  // xAI（Grok / Imagine API）。OpenAI → Gemini でも拒否されたときの回し先（委託者指示・2026-10-06）
+  "api.x.ai",
 ];
 
 export class DisallowedHostError extends Error {

@@ -222,6 +222,65 @@ export const DEMO_TEMPLATES: readonly Template[] = Object.freeze([
     noteJa: "ポーズをソファーに腰掛けた姿に変更する。背筋を伸ばし、手は自然に置く。",
   }),
 
+  // ── アングル（画角）※委託者指示・2026-09-30 ──
+  //
+  //   ★ 「どこまで写すか」だけを述べ、姿勢には触れない（姿勢はポーズカードの担当）。
+  //   ★ どれも「被写体を枠いっぱいに、余白を作らずに収める」を含める。
+  //     アングルを変える＝トリミングし直すことなので、ここで余白の扱いを明示しないと
+  //     モデルは上下に無地の帯を足して比を合わせようとする。
+  //   ★ 元写真より引いたアングル（例：バストアップの写真から全身）は、
+  //     写っていない範囲をモデルが作り出すことになる。labelJa の説明でそれを断っている。
+  Object.freeze({
+    id: "framing.face_up",
+    categoryId: "framing" as CategoryId,
+    labelJa: "顔寄り（フェイスアップ）",
+    instruction:
+      "reframe to a face-up composition — the head and the tops of the shoulders, cropped just below the shoulder line. " +
+      "Center the face in the upper third and let the subject fill the frame edge to edge, leaving no empty margin around the subject.",
+    noteJa:
+      "画角を顔寄り（フェイスアップ）にする。頭と肩の上端まで、肩の線のすぐ下で切る。顔を上 1/3 に置き、被写体を枠いっぱいに収めて周囲に空きを作らない。",
+  }),
+  Object.freeze({
+    id: "framing.bust_up",
+    categoryId: "framing" as CategoryId,
+    labelJa: "バストアップ",
+    instruction:
+      "reframe to a bust-up composition — from just above the chest to the top of the head. " +
+      "Let the subject fill the frame edge to edge, leaving no empty margin around the subject.",
+    noteJa:
+      "画角をバストアップにする。胸の上あたりから頭頂まで。被写体を枠いっぱいに収めて周囲に空きを作らない。",
+  }),
+  Object.freeze({
+    id: "framing.chest_up",
+    categoryId: "framing" as CategoryId,
+    labelJa: "チェストアップ",
+    instruction:
+      "reframe to a chest-up composition — from mid-chest to the top of the head, slightly wider than a bust-up shot. " +
+      "Let the subject fill the frame edge to edge, leaving no empty margin around the subject.",
+    noteJa:
+      "画角をチェストアップにする。胸のあたりから頭頂まで（バストアップより少し引き）。被写体を枠いっぱいに収めて周囲に空きを作らない。",
+  }),
+  Object.freeze({
+    id: "framing.waist_up",
+    categoryId: "framing" as CategoryId,
+    labelJa: "ウエストアップ",
+    instruction:
+      "reframe to a waist-up composition — from the waistline to the top of the head, including both arms. " +
+      "Let the subject fill the frame edge to edge, leaving no empty margin around the subject.",
+    noteJa:
+      "画角をウエストアップにする。腰の高さから頭頂まで、両腕を含める。被写体を枠いっぱいに収めて周囲に空きを作らない。",
+  }),
+  Object.freeze({
+    id: "framing.full_body",
+    categoryId: "framing" as CategoryId,
+    labelJa: "全身",
+    instruction:
+      "reframe to a full-body composition — the whole figure from the top of the head to the feet. " +
+      "Keep the figure as large as the frame allows, with only a minimal even clearance above the head and below the feet.",
+    noteJa:
+      "画角を全身にする。頭頂から足元まで、人物を縦に大きく収める。頭上と足元の余裕は最小限で均等にする。",
+  }),
+
   // ── 雰囲気 ──
   Object.freeze({
     id: "mood.cinematic_luxury",

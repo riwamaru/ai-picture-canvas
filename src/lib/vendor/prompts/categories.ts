@@ -12,6 +12,12 @@ export const CATEGORY_IDS = [
   "costume",
   "hair",
   "pose",
+  // ★ デモ環境での追加（委託者指示・2026-09-30。仕様書の 7 カテゴリには無い）。
+  //   「アングル指定：チェストアップ、バストアップ、全身 など」。
+  //   ポーズ（姿勢）とは別の軸にしてある。姿勢はそのままで画角だけ変えたい場面があり、
+  //   1 つのカードに混ぜると「立ち姿のままバストアップ」が選べなくなる。
+  //   ★ PoC 側（../poc）はこの追加を含まない。
+  "framing",
   "mood",
   "tattoo_removal",
 ] as const;
@@ -29,6 +35,7 @@ export type ProcessKind = "A" | "B" | "C";
 export const PROCESS_KIND: Record<CategoryId, ProcessKind> = {
   makeup: "A",
   mood: "A",
+  framing: "A",
   background: "B",
   costume: "B",
   hair: "B",
@@ -43,6 +50,7 @@ export const CATEGORY_LABEL_JA: Record<CategoryId, string> = {
   costume: "衣装",
   hair: "髪型",
   pose: "ポーズ",
+  framing: "アングル",
   mood: "雰囲気",
   tattoo_removal: "タトゥー除去",
 };

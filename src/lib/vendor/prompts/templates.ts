@@ -63,6 +63,28 @@ export const IDENTITY_GUARD_INSTRUCTION =
   //   （黒いドレス＋寝室 → スーツ＋書棚）。編集であることを明示して閉じる。
   "Return the same photograph with only the specified edits applied.";
 
+/**
+ * 出力に無地の余白を付けさせないための語（委託者指示・2026-09-30）。
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * 【なぜ必要か】
+ * 画像モデルは出力の縦横比を自分で決める（Gemini は imageSize しか指定できない）。
+ * 元画像と比が合わないとき、**足りない側に無地の帯を足して**比を合わせて返してくる。
+ * 生成結果をそのまま保存しているため、この帯がキャストの掲載画像に残る。
+ *
+ * 帯は「編集」ではなく出力の都合で足されるものなので、毎回禁じる。
+ * それでも付いてきた帯は保存前に機械的に切り落とす（lib/framing.ts の trimUniformBorders）。
+ * ═══════════════════════════════════════════════════════════════
+ */
+export const NO_MARGIN_INSTRUCTION =
+  "Fill the entire output frame with the photograph itself: " +
+  "do not add borders, frames, letterboxing, padding, or blank margins on any side, " +
+  "and do not place the photograph on a background canvas.";
+
+export const NO_MARGIN_NOTE_JA =
+  "出力の枠は写真そのもので埋める。上下左右に縁・枠線・レターボックス・無地の余白を足さない。" +
+  "写真を別の下地の上に置かない。";
+
 export const IDENTITY_GUARD_NOTE_JA =
   "元画像の人物を編集する。顔の造作（輪郭・目の形と間隔・鼻・口・肌の色）を厳密に保持し、" +
   "人物の差し替え・美化・造作の変形・年齢や体型の変更を行わない。" +
@@ -93,8 +115,11 @@ export const PRESERVE_PHRASES: Readonly<Record<CategoryId, string>> = Object.fre
   background: "the background, setting, and everything behind the person",
   costume: "the clothing, garments, and accessories",
   hair: "the hairstyle, hair length, and hair color",
-  // 構図はポーズカテゴリに含める。ポーズ変更が有効なときだけ動かしてよい。
-  pose: "the pose, body position, framing, crop, camera angle, and distance",
+  // ★ 画角・トリミングは pose から framing へ移した（委託者指示・2026-09-30）。
+  //   以前は構図をポーズに含めていたため、アングルだけを変えたいときに
+  //   ポーズカードを有効にするしかなく、姿勢まで作り直された。
+  pose: "the pose, body position, posture, and gesture",
+  framing: "the framing, crop, camera angle, shooting distance, and how much of the body is visible",
   mood: "the lighting, color grading, and overall atmosphere",
   tattoo_removal: "any tattoos, marks, or blemishes on the skin",
 });
@@ -104,7 +129,8 @@ export const PRESERVE_PHRASES_JA: Readonly<Record<CategoryId, string>> = Object.
   background: "背景・空間・人物の後ろにあるもの",
   costume: "衣装・小物",
   hair: "髪型・髪の長さ・髪色",
-  pose: "姿勢・体の向き・画角・トリミング・カメラ位置・距離",
+  pose: "姿勢・体の向き・手の位置",
+  framing: "画角・トリミング・カメラ位置・撮影距離・どこまで写すか",
   mood: "照明・色調・全体の雰囲気",
   tattoo_removal: "肌のタトゥー・傷・シミ",
 });
@@ -124,8 +150,18 @@ export const PRESERVE_PHRASES_JA: Readonly<Record<CategoryId, string>> = Object.
  * v3 … 2026-08-16。並び順を変更。「何を変えるか」を先頭に、「それ以外は保つ」を
  *      後に、本人性の保持を最後に置く。変更内容には
  *      「結果にはっきり見えていること」を付ける。
+ * v5 … 2026-09-30（委託者指示）。① 出力に無地の余白（帯・レターボックス）を
+ *      付けないことを毎回明示した。② アングル（framing）を独立したカテゴリにし、
+ *      画角・トリミングの保持句を pose から分離した。
+ *
+ * v6 … 2026-10-02。アングル「全身」の文面から "standing upright in the frame" を削った。
+ *      姿勢の指示が混ざっており、ポーズを無効にしていても立ち姿へ作り替えられていた。
+ *      日本語の説明側には「立ち姿」が無く、日本語の監査では気づけない状態だった。
+ *
+ * ★ v4 は欠番である。PoC 側（../poc）で 2026-08-28 に試して撤回した実験に
+ *   使われた番号で、同じ番号を再利用すると記録の template_version が二義的になる。
  */
-export const TEMPLATE_VERSION = "v3";
+export const TEMPLATE_VERSION = "v6";
 
 /** メイク強度ごとの指示。6 枚の差異を作る 1 つ目の軸（機能仕様書 2.2.2）。 */
 export const MAKEUP_STRENGTH_TEMPLATES: Readonly<
@@ -313,6 +349,7 @@ export const DEFAULT_TEMPLATE_ID: Partial<Record<CategoryId, string>> = Object.f
   costume: "costume.formal_dress",
   hair: "hair.long_straight",
   pose: "pose.standing_front",
+  framing: "framing.bust_up",
   mood: "mood.bright_clean",
   tattoo_removal: "tattoo_removal.skin_restore",
 });

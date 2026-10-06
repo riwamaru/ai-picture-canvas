@@ -102,6 +102,13 @@ const DISPLAY: Record<
     freeTextLabelJa: "自由テキスト指示",
     freeTextPlaceholder: "例: 手をあごに少し添えるポーズ",
   },
+  framing: {
+    titleJa: "アングル（画角）",
+    letterJa: "角",
+    selectLabelJa: "テンプレートから選択",
+    freeTextLabelJa: "自由テキスト指示",
+    freeTextPlaceholder: "例: 顔を少し上寄りに、右に余裕を持たせる",
+  },
   mood: {
     titleJa: "全体の雰囲気・ライティング",
     letterJa: "雰",
@@ -131,6 +138,7 @@ const CARD_ORDER: readonly CategoryId[] = [
   "costume",
   "hair",
   "pose",
+  "framing",
   "mood",
   "tattoo_removal",
 ];

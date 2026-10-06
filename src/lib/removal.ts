@@ -4,6 +4,8 @@ import { requireTemplate } from "./vendor/prompts/templates";
 import {
   IDENTITY_GUARD_INSTRUCTION,
   IDENTITY_GUARD_NOTE_JA,
+  NO_MARGIN_INSTRUCTION,
+  NO_MARGIN_NOTE_JA,
   TEMPLATE_VERSION,
 } from "./vendor/prompts/templates";
 
@@ -88,6 +90,10 @@ export function buildSemanticRemovalPrompt(input: {
     lines.push(`Additional note from the operator: ${input.freeText}`);
     notes.push(`補足メモ: ${input.freeText}`);
   }
+
+  // 除去も Gemini（semantic masking）へ回るため、出力に帯が付く経路がある（委託者指示・2026-09-30）
+  lines.push(NO_MARGIN_INSTRUCTION);
+  notes.push(NO_MARGIN_NOTE_JA);
 
   lines.push(IDENTITY_GUARD_INSTRUCTION);
   notes.push(IDENTITY_GUARD_NOTE_JA);

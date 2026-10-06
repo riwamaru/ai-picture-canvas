@@ -96,7 +96,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           message: drive.ok ? null : drive.message,
         }
       : null,
-    message: buildMessage(outcome.status, outcome.resolution, drive),
+    // 承認された候補と構図が揃っていないおそれ（2026-10-06 追加）。
+    // 画面はこれが true のとき、画像を確認するよう促すこと。
+    aspectMismatch: outcome.aspect?.mismatch ?? false,
+    message: buildMessage(outcome.status, outcome.resolution, drive, outcome.aspect?.mismatch ?? false),
   });
 }
 
@@ -104,17 +107,23 @@ function buildMessage(
   status: "created" | "already",
   resolution: string,
   drive: { ok: boolean; status: string; folderPath?: string; message?: string } | null,
+  aspectMismatch: boolean,
 ): string {
   const head =
     status === "already"
       ? "この回はすでに確定済みです。"
       : `確定画像を ${resolution.toUpperCase()} で作成しました。`;
 
+  // 構図のずれは保存の成否より先に伝える（Drive へ入ったものがそのまま掲載に使われる）
+  const warning = aspectMismatch
+    ? " ⚠️ 選んだ候補と縦横比が揃っていません。構図が変わっている可能性があるため、画像を確認してください。"
+    : "";
+
   if (!drive) {
-    return `${head} Google Drive への保存は管理者設定でオフのため、Supabase 側にのみ保存しています。`;
+    return `${head}${warning} Google Drive への保存は管理者設定でオフのため、Supabase 側にのみ保存しています。`;
   }
   if (drive.ok) {
-    return `${head} Drive へ保存しました（${drive.folderPath}）。`;
+    return `${head}${warning} Drive へ保存しました（${drive.folderPath}）。`;
   }
-  return `${head} ただし Drive へは送れませんでした。画像は保存されています。${drive.message ?? ""}`;
+  return `${head}${warning} ただし Drive へは送れませんでした。画像は保存されています。${drive.message ?? ""}`;
 }

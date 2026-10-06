@@ -28,8 +28,10 @@ type Limits = {
   images_per_job: number;
   variant_strategy: "identical" | "micro_delta";
   fallback_enabled: boolean;
-  primary_provider: "openai" | "google";
-  fallback_provider: "openai" | "google";
+  primary_provider: "openai" | "google" | "grok";
+  fallback_provider: "openai" | "google" | "grok";
+  /** 2 番目の回し先。null なら 2 段で止める。 */
+  second_fallback_provider: "openai" | "google" | "grok" | null;
   fallback_on_policy: boolean;
   removal_fallback_enabled: boolean;
   slack_enabled: boolean;
@@ -137,6 +139,7 @@ export function AdminPanel() {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [slack, setSlack] = useState<SlackState | null>(null);
+  const [providerKeys, setProviderKeys] = useState<Record<string, boolean> | null>(null);
   const [slackTest, setSlackTest] = useState<{ ok: boolean; message: string } | null>(null);
   const [slackBusy, setSlackBusy] = useState(false);
   const [drive, setDrive] = useState<DriveState | null>(null);
@@ -153,6 +156,7 @@ export function AdminPanel() {
       setUsers((data.users ?? []) as UserRow[]);
       setPinnedAdmins((data.pinnedAdmins ?? []) as string[]);
       setSlack((data.slack ?? null) as SlackState | null);
+      setProviderKeys((data.providerKeys ?? null) as Record<string, boolean> | null);
 
       // Drive の状態は別のルート（孤児フォルダの点検などで重いため）
       const driveResponse = await fetch("/api/admin/drive", { cache: "no-store" });
@@ -417,6 +421,7 @@ export function AdminPanel() {
                   >
                     <option value="openai">OpenAI gpt-image-2</option>
                     <option value="google">Google gemini-3-pro-image</option>
+                    <option value="grok">xAI grok-imagine-image-2.0</option>
                   </select>
                 </div>
                 <div className="setting-field">
@@ -431,9 +436,45 @@ export function AdminPanel() {
                   >
                     <option value="google">Google gemini-3-pro-image</option>
                     <option value="openai">OpenAI gpt-image-2</option>
+                    <option value="grok">xAI grok-imagine-image-2.0</option>
+                  </select>
+                </div>
+                <div className="setting-field">
+                  <label>それでも失敗したときに回す先</label>
+                  <select
+                    value={limits.second_fallback_provider ?? ""}
+                    onChange={(e) =>
+                      void patch({
+                        second_fallback_provider:
+                          e.target.value === ""
+                            ? null
+                            : (e.target.value as NonNullable<Limits["second_fallback_provider"]>),
+                      })
+                    }
+                  >
+                    <option value="grok">xAI grok-imagine-image-2.0</option>
+                    <option value="google">Google gemini-3-pro-image</option>
+                    <option value="openai">OpenAI gpt-image-2</option>
+                    <option value="">なし（2 段で止める）</option>
                   </select>
                 </div>
               </div>
+              {providerKeys &&
+                (["openai", "google", "grok"] as const)
+                  .filter(
+                    (name) =>
+                      !providerKeys[name] &&
+                      [limits.primary_provider, limits.fallback_provider, limits.second_fallback_provider].includes(name),
+                  )
+                  .map((name) => (
+                    <div className="setting-note" key={name} style={{ color: "#b45309" }}>
+                      <i className="fa-solid fa-triangle-exclamation" />{" "}
+                      {name === "openai" ? "OPENAI_API_KEY" : name === "google" ? "GEMINI_API_KEY" : "XAI_API_KEY"}{" "}
+                      がサーバーに設定されていないため、
+                      {name === "openai" ? "OpenAI" : name === "google" ? "Google" : "Grok"}{" "}
+                      は順番から外れます（Vercel の環境変数に設定してください）。
+                    </div>
+                  ))}
 
               <div className="toggle-inline">
                 <span>
@@ -468,7 +509,7 @@ export function AdminPanel() {
               <div className="toggle-inline">
                 <span>
                   <i className="fa-solid fa-eraser" style={{ color: "var(--type-c)" }} />{" "}
-                  除去も Gemini へ回す（範囲を目印と文章で伝える方式）
+                  除去も Gemini・Grok へ回す（範囲を目印と文章で伝える方式）
                 </span>
                 <label className="switch">
                   <input
@@ -488,6 +529,11 @@ export function AdminPanel() {
             その規則ではフォールバックが一度も発動しないため、委託者判断でポリシー拒否も対象にしています。
             禁止事項③が禁じるのは「文言を変えた再投入」であり、同一プロンプトを別ベンダーへ送ることは
             これに当たりません。<strong>拒否は課金されない</strong>ため、追加費用も発生しません。
+            <br />
+            <strong>3 番目の回し先（既定 Grok）</strong>は、OpenAI・Gemini の両方で拒否された写真に使います
+            （委託者指示・2026-10-06）。Grok は出力サイズを指定できず約 832×1248 で返るため、
+            <strong>確定画像（2K）を Grok で作った場合は 2K になりません</strong>。
+            「なし」を選ぶと従来どおり 2 段で止まります。
             <br />
             <strong>除去（マスク編集）は方式が 2 つある。</strong> OpenAI はマスク画像そのものを
             API へ渡すので「マスク外は変更しない」ことが仕組みで担保される。Gemini

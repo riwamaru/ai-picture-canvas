@@ -130,6 +130,17 @@ export default async function HelpPage() {
             </li>
             <li>自由テキスト欄に入れた文はそのまま指示に添えられ、全文が記録に残ります。</li>
             <li>
+              <strong>アングル（画角）</strong>：顔寄り・バストアップ・チェストアップ・ウエストアップ・全身から選べます。
+              画角だけを変えるカードで、姿勢はポーズカードの担当です。
+              <strong>元の写真に写っていない範囲は AI が作り出す</strong>ので、元より引いた指定（バストアップの写真から「全身」など）は脚や足元が実物と違って出ます。寄せる方向のほうが確実です。
+              カードを無効にすると、元の画角がそのまま保たれます。
+            </li>
+            <li>
+              生成した画像の<strong>上下左右に無地の余白（帯）が付かない</strong>ようにしています。
+              生成 AI は出力の縦横比を自分で決めるため帯を足してくることがあり、指示で禁じたうえで、残った帯は保存前に自動で切り落としています。
+              ただし<strong>無地の背景を削ってしまわないよう、削る範囲が広すぎるときは切りません</strong>（背景まで消えるのを避けるため）。
+            </li>
+            <li>
               <strong>参考画像</strong>（背景・衣装・髪型・ポーズ・雰囲気）：見本にしたい写真を<strong>各カード 2 枚・合計 6 枚</strong>まで置けます。写真はそのまま生成 AI へ渡されます。<strong>参考画像があるときはそれが優先</strong>され、テンプレートは補助になります（食い違えば参考画像に従います）。カードを無効にすると送られません。
             </li>
           </ul>
@@ -141,7 +152,7 @@ export default async function HelpPage() {
             </li>
             <li>できた候補から順に表示されます。全部そろうまで 1〜2 分です。</li>
             <li>
-              各候補のバッジに、どの AI で作られたかが出ます。「OpenAI 拒否 → Google」と出た候補は、OpenAI が内容の判定で断り、Google（Gemini）で作られたものです。<strong>拒否には料金がかかりません</strong>。
+              各候補のバッジに、どの AI で作られたかが出ます。AI は <strong>OpenAI → Google（Gemini）→ xAI（Grok）</strong>の順に試します。「OpenAI 拒否 →」と出た候補は OpenAI が内容の判定で断り Google で作られたもの、「OpenAI 拒否 → Google 拒否 →」と出た候補は両方が断り Grok で作られたものです。<strong>拒否には料金がかかりません</strong>。
             </li>
           </ul>
 
@@ -282,7 +293,7 @@ export default async function HelpPage() {
             <tbody>
               <tr>
                 <td>候補が「安全性判定により拒否」で失敗した</td>
-                <td>OpenAI と Google の両方が内容の判定で断った</td>
+                <td>OpenAI・Google・Grok のすべてが内容の判定で断った</td>
                 <td>同じ内容の言い換えはしません。条件（テンプレート・自由文・参考画像）を変えて生成し直してください</td>
               </tr>
               <tr>
@@ -318,6 +329,7 @@ export default async function HelpPage() {
                 <th>操作</th>
                 <th>Google（Gemini）</th>
                 <th>OpenAI</th>
+                <th>xAI（Grok）</th>
               </tr>
             </thead>
             <tbody>
@@ -325,26 +337,31 @@ export default async function HelpPage() {
                 <td>候補 1 枚（1K）</td>
                 <td>約 $0.14</td>
                 <td>約 $0.05</td>
+                <td>約 $0.07</td>
               </tr>
               <tr>
                 <td>生成 1 回（4 枚）</td>
                 <td>約 $0.55</td>
                 <td>約 $0.21</td>
+                <td>約 $0.28</td>
               </tr>
               <tr>
                 <td>個別修正 1 回（1K）</td>
                 <td>約 $0.14</td>
                 <td>約 $0.05</td>
+                <td>約 $0.07</td>
               </tr>
               <tr>
                 <td>確定 1 回（2K）</td>
                 <td>約 $0.14</td>
                 <td>約 $0.85</td>
+                <td>約 $0.07（※ 2K にならない）</td>
               </tr>
             </tbody>
           </table>
           <p>
             現状、多くの写真で OpenAI が内容の判定で断り、Google で作られています。その場合の費用は Google の列です。断られた呼び出しには料金がかかりません。
+            Grok は Google でも断られたときだけ使います。<strong>Grok は出力サイズを指定できず約 832×1248 で返る</strong>ため、Grok で作られた候補を確定しても 2K にはなりません。
           </p>
         </section>
 
@@ -368,7 +385,7 @@ export default async function HelpPage() {
                 </tr>
                 <tr>
                   <td>生成・モデル</td>
-                  <td>OpenAI → Google のフォールバック、拒否時に回すか、除去を Gemini へ回すか、パターン A/B の作り分け、確定画像の解像度（2K / 1K）</td>
+                  <td>OpenAI → Google → Grok のフォールバック（3 番目は「なし」も可）、拒否時に回すか、除去を Gemini・Grok へ回すか、パターン A/B の作り分け、確定画像の解像度（2K / 1K）</td>
                 </tr>
                 <tr>
                   <td>店舗・キャスト</td>

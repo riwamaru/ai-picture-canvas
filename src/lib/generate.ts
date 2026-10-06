@@ -3,17 +3,23 @@ import { analyzeMask, renderMaskGuide, sharpMaskCodec, type MaskRegion } from ".
 import { buildSemanticRemovalPrompt } from "./removal";
 import {
   DEMO_RESOLUTION,
+  FUNCTION_BUDGET_MS,
   GOOGLE_CONFIG,
+  GROK_CONFIG,
   OPENAI_CONFIG,
-  PER_CALL_TIMEOUT_MS,
+  PROVIDER_ENV_KEY,
+  callTimeoutMs,
+  isProviderName,
   type ProviderName,
 } from "./models";
 import { OpenAIProvider, pixelsOf } from "./vendor/providers/openai";
 import { GoogleProvider } from "./vendor/providers/google";
+import { GrokProvider } from "./vendor/providers/grok";
 import { classifyError } from "./vendor/providers/errors";
 import { estimateCost } from "./vendor/providers/pricing";
 import type { ImageProvider, Resolution } from "./vendor/providers/types";
 import { buildPrompt, type CategoryInput } from "./vendor/prompts/build";
+import { trimForStorage } from "./framing";
 import type { CategoryId, MakeupStrength } from "./vendor/prompts/categories";
 import type { VariantIndex, VariantStrategy } from "./vendor/prompts/variants";
 import { notifyJobFinished, type SlackSettings } from "./slack";
@@ -25,10 +31,12 @@ import { notifyJobFinished, type SlackSettings } from "./slack";
  * 【2 つのモード】
  *
  *  normal  … 通常加工。メイク強度 弱・中・強 × 各 2 枚 ＝ 6 枚。
- *            OpenAI で試し、失敗したら Google へ回す。
+ *            OpenAI で試し、失敗したら Google、それでも失敗したら Grok へ回す。
  *
- *  removal … タトゥー・不要物除去。マスク必須・1 枚・OpenAI 専用。
- *            Google はマスク画像を入力できないためフォールバック先が無い。
+ *  removal … タトゥー・不要物除去。マスク必須・1 枚。
+ *            OpenAI はマスク画像そのものを使う（inpaint）。
+ *            Google・Grok はマスク画像を入力できないので、目印つき画像と文章で
+ *            範囲を伝える（semantic_mask）。
  *
  * 【フォールバックについて】
  *
@@ -45,6 +53,13 @@ import { notifyJobFinished, type SlackSettings } from "./slack";
  * また拒否は課金されないため、フォールバックによる追加費用は発生しない。
  *
  * ★ 同じプロバイダへの再試行は行わない。ここは指示書 4 章のままである。
+ *
+ * 【3 番目の回し先：Grok（委託者指示・2026-10-06）】
+ *
+ * OpenAI → Gemini の両方で拒否された写真を、Grok（xAI grok-imagine-image-2.0）へ回す。
+ * 送るのは同一プロンプトであり、上記と同じ理由で禁止事項③には当たらない。
+ * 順番は demo_limits の primary_provider → fallback_provider → second_fallback_provider。
+ * second_fallback_provider を null にすれば従来どおり 2 段で止まる。
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -97,7 +112,109 @@ export type FallbackPolicy = {
   enabled: boolean;
   primary: ProviderName;
   fallback: ProviderName;
+  /** fallback でも失敗したときの回し先。null なら 2 段で止める。 */
+  secondFallback: ProviderName | null;
   onPolicy: boolean;
+};
+
+/** demo_limits の行から FallbackPolicy を組む。列が無い・値が不正なら既定値に落とす。 */
+export function fallbackPolicyFrom(
+  limits: {
+    fallback_enabled?: boolean | null;
+    primary_provider?: unknown;
+    fallback_provider?: unknown;
+    second_fallback_provider?: unknown;
+    fallback_on_policy?: boolean | null;
+  } | null,
+): FallbackPolicy {
+  return {
+    enabled: limits?.fallback_enabled ?? true,
+    primary: isProviderName(limits?.primary_provider) ? limits.primary_provider : "openai",
+    fallback: isProviderName(limits?.fallback_provider) ? limits.fallback_provider : "google",
+    // ★ 列そのものが無い（マイグレーション前）なら undefined、明示的に「なし」なら null。
+    //   null を既定値で上書きしてはならない（管理者が切ったものが勝手に戻る）。
+    secondFallback:
+      limits?.second_fallback_provider === null
+        ? null
+        : isProviderName(limits?.second_fallback_provider)
+          ? limits.second_fallback_provider
+          : "grok",
+    onPolicy: limits?.fallback_on_policy ?? true,
+  };
+}
+
+/**
+ * 試す順番。first を先頭に置き、残りは設定の順（primary → fallback → secondFallback）で
+ * 重複なく並べる。フォールバックが無効なら first だけ。
+ *
+ * ★ 個別修正・確定では first に「入力画像を作ったプロバイダ」を渡す（見た目の連続性のため）。
+ */
+export function providerOrder(
+  policy: FallbackPolicy,
+  first: ProviderName = policy.primary,
+): ProviderName[] {
+  if (!policy.enabled) return [first];
+  const order: ProviderName[] = [];
+  for (const name of [first, policy.primary, policy.fallback, policy.secondFallback]) {
+    if (name && !order.includes(name)) order.push(name);
+  }
+  return order;
+}
+
+export type Attempt = { provider: ProviderName; method: "inpaint" | "semantic_mask" | "instruct" };
+
+/**
+ * 除去（マスク）の試行順。
+ *
+ * OpenAI だけがマスク画像を受け取れる（inpaint）。それ以外は semantic_mask。
+ * ★ 後者は前者の代替ではない。「マスク外は不変」の保証が無いので、
+ *   どちらで作ったかを edit_method に必ず残す。
+ *
+ * @param first 先頭に置く試行（確定処理ではドラフトを作った組み合わせ）
+ */
+export function removalAttempts(
+  policy: FallbackPolicy,
+  removalFallback: boolean,
+  first: Attempt = { provider: "openai", method: "inpaint" },
+): Attempt[] {
+  const methodOf = (provider: ProviderName): Attempt["method"] =>
+    provider === "openai" ? "inpaint" : "semantic_mask";
+  if (!(removalFallback && policy.enabled)) return [first];
+  // 除去は OpenAI（inpaint）を基準に、残りを設定の順で並べる
+  const rest = providerOrder(policy, "openai").filter((name) => name !== first.provider);
+  return [first, ...rest.map((provider) => ({ provider, method: methodOf(provider) }))];
+}
+
+/** 先に試して失敗したプロバイダ。 */
+export type FailedAttempt = { provider: ProviderName; kind: string; detail: string };
+
+/**
+ * フォールバックの経緯を DB の列へ落とす。
+ *
+ * attempted_* は「最初に失敗したプロバイダ」（＝通常は OpenAI）を持つ。
+ * 2 段のときと意味を変えないためである（OpenAI の拒否率を数えるのに使っている）。
+ * 3 段目まで行ったときの全経緯は attempt_trail に順に残す。
+ */
+export function attemptColumns(trail: FailedAttempt[]) {
+  const first = trail[0];
+  return {
+    attempted_provider: first?.provider ?? null,
+    attempted_error_kind: first?.kind ?? null,
+    attempted_error_message: first ? first.detail.slice(0, 2000) : null,
+    attempt_trail: trail.map((a) => ({
+      provider: a.provider,
+      kind: a.kind,
+      detail: a.detail.slice(0, 500),
+    })),
+  };
+}
+
+/** 関数の残り時間が足りず、次のプロバイダを呼ばずに打ち切ったときの記録。 */
+export const TIME_BUDGET_EXHAUSTED = {
+  kind: "infra" as const,
+  code: "time_budget_exhausted",
+  detail:
+    "関数の実行時間（300 秒）の残りが足りないため、次のプロバイダを呼ばずに打ち切りました。",
 };
 
 /**
@@ -126,6 +243,18 @@ export function estimateOne(
       referenceCount,
     });
   }
+  if (provider === "grok") {
+    return estimateCost({
+      provider: "grok",
+      modelId: GROK_CONFIG.modelId,
+      // Grok はマスクを受け取らない。除去では目印つき画像 1 枚を参考画像として送る
+      mode: mode === "inpaint" ? "reference" : mode,
+      resolution,
+      outputPixels: GROK_CONFIG.resolution[resolution].pixels,
+      quality: "medium",
+      referenceCount: mode === "inpaint" ? Math.max(1, referenceCount) : referenceCount,
+    });
+  }
   return estimateCost({
     provider: "google",
     modelId: GOOGLE_CONFIG.modelId,
@@ -140,10 +269,10 @@ export function estimateOne(
 /**
  * 予約に使う 1 枚あたりの単価。
  *
- * ★ フォールバックすると 1 枚で最大 2 回呼ぶが、拒否は課金されない。
+ * ★ フォールバックすると 1 枚で最大 3 回呼ぶが、拒否は課金されない。
  *   実費は「最後に成功した 1 回ぶん」になる。
- *   ただし予約の時点でどちらが成功するか分からないので、
- *   **高いほう**で押さえておく。実額は settle_generation で差し替える。
+ *   ただし予約の時点でどれが成功するか分からないので、
+ *   **いちばん高いもの**で押さえておく。実額は settle_generation で差し替える。
  */
 export function reservationUnitUsd(
   policy: FallbackPolicy,
@@ -151,13 +280,11 @@ export function reservationUnitUsd(
   resolution: Resolution = DEMO_RESOLUTION,
   referenceCount = 0,
 ): number {
-  const candidates = policy.enabled
-    ? [
-        estimateOne(policy.primary, requiresMask, resolution, referenceCount),
-        estimateOne(policy.fallback, requiresMask, resolution, referenceCount),
-      ]
-    : [estimateOne(policy.primary, requiresMask, resolution, referenceCount)];
-  return Math.max(...candidates);
+  return Math.max(
+    ...providerOrder(policy).map((name) =>
+      estimateOne(name, requiresMask, resolution, referenceCount),
+    ),
+  );
 }
 
 export function buildSlotPrompt(selection: Selection, spec: SlotSpec) {
@@ -173,10 +300,22 @@ export function createProvider(name: ProviderName, keys: ProviderKeys): ImagePro
   if (name === "openai") {
     return keys.openai ? new OpenAIProvider(OPENAI_CONFIG, keys.openai, sharpMaskCodec) : null;
   }
+  if (name === "grok") {
+    return keys.grok ? new GrokProvider(GROK_CONFIG, keys.grok) : null;
+  }
   return keys.google ? new GoogleProvider(GOOGLE_CONFIG, keys.google) : null;
 }
 
-export type ProviderKeys = { openai: string | undefined; google: string | undefined };
+export type ProviderKeys = Record<ProviderName, string | undefined>;
+
+/** 環境変数から API キーを読む。未設定のプロバイダはチェーンから外れる。 */
+export function providerKeysFromEnv(): ProviderKeys {
+  return {
+    openai: process.env[PROVIDER_ENV_KEY.openai],
+    google: process.env[PROVIDER_ENV_KEY.google],
+    grok: process.env[PROVIDER_ENV_KEY.grok],
+  };
+}
 
 type ProcessInput = {
   admin: SupabaseClient;
@@ -194,12 +333,12 @@ type ProcessInput = {
   slots: SlotSpec[];
   mode: JobMode;
   policy: FallbackPolicy;
-  /** 除去モードのときの追加情報（Gemini へ semantic masking で回すために使う）。 */
+  /** 除去モードのときの追加情報（Gemini・Grok へ semantic masking で回すために使う）。 */
   removal: {
     /** 除去対象の種類（凍結済みカタログの ID）。 */
     templateId: string;
     freeText: string | null;
-    /** OpenAI が失敗したら Gemini へ回すか。 */
+    /** OpenAI が失敗したら Gemini・Grok へ回すか。 */
     fallbackEnabled: boolean;
   } | null;
   /** 予約時に引いた見積の合計。実額との差し替えに使う。 */
@@ -238,40 +377,28 @@ export async function processJob(input: ProcessInput): Promise<void> {
     slack,
   } = input;
 
-  const keys: ProviderKeys = {
-    openai: process.env.OPENAI_API_KEY,
-    google: process.env.GEMINI_API_KEY,
-  };
+  const keys = providerKeysFromEnv();
+  // ★ processJob は after() の中で動く。関数上限（300 秒）は要求の受付から数えるので、
+  //   ここを起点にした締め切りは FUNCTION_BUDGET_MS の分だけ余裕を持たせてある。
+  const deadline = Date.now() + FUNCTION_BUDGET_MS;
 
   // ── どのプロバイダを、どの方式で試すか ──
   //
   // 除去（マスク）の扱いが通常加工と違う：
-  //   OpenAI … inpaint。マスク画像そのものを渡すので、マスク外の不変が仕組みで担保される
-  //   Google … マスク画像を渡せない。目印つき画像と文章で範囲を伝える（semantic masking）
+  //   OpenAI        … inpaint。マスク画像そのものを渡すので、マスク外の不変が仕組みで担保される
+  //   Google / Grok … マスク画像を渡せない。目印つき画像と文章で範囲を伝える（semantic masking）
   //
   // ★ 後者は前者の代替ではない。「マスク外は不変」の保証が無いので、
-  //   どちらで作ったかを edit_method に必ず残す。
-  type Attempt = { provider: ProviderName; method: "inpaint" | "semantic_mask" | "instruct" };
-
+  //   どれで作ったかを edit_method に必ず残す。
   const chain: Attempt[] =
     mode === "removal"
-      ? [
-          { provider: "openai", method: "inpaint" },
-          ...(removal?.fallbackEnabled && policy.enabled
-            ? [{ provider: "google" as ProviderName, method: "semantic_mask" as const }]
-            : []),
-        ]
-      : (policy.enabled && policy.fallback !== policy.primary
-          ? [policy.primary, policy.fallback]
-          : [policy.primary]
-        ).map((provider) => ({ provider, method: "instruct" as const }));
+      ? removalAttempts(policy, removal?.fallbackEnabled ?? false)
+      : providerOrder(policy).map((provider) => ({ provider, method: "instruct" as const }));
 
   const usable = chain.filter((attempt) => createProvider(attempt.provider, keys) !== null);
 
   if (usable.length === 0) {
-    const missing = chain
-      .map((a) => (a.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"))
-      .join(" / ");
+    const missing = chain.map((a) => PROVIDER_ENV_KEY[a.provider]).join(" / ");
     await admin
       .from("job_images")
       .update({
@@ -301,7 +428,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
       : "instruct";
   const referenceBytes = references.map((buffer) => new Uint8Array(buffer));
 
-  // semantic masking で使う材料。除去モードで Gemini を試すときだけ作る。
+  // semantic masking で使う材料。除去モードで Gemini・Grok を試すときだけ作る。
   let maskRegion: MaskRegion | null = null;
   let maskGuide: Buffer | null = null;
   if (mode === "removal" && maskPng && usable.some((a) => a.method === "semantic_mask")) {
@@ -313,6 +440,14 @@ export async function processJob(input: ProcessInput): Promise<void> {
       console.error("[removal] 目印つき画像を作れませんでした:", error);
     }
   }
+
+  // semantic masking はマスク画像を渡せないので、目印つき画像と文章で伝える。
+  // 材料が作れなかった場合はその試行を外す（黙って別物を送らない）。
+  // ★ ループの途中で飛ばすと「最後の試行」の判定がずれ、行が running のまま残る。先に外す。
+  const runnable = usable.filter(
+    (attempt) =>
+      attempt.method !== "semantic_mask" || (maskGuide !== null && maskRegion !== null && removal !== null),
+  );
 
   let actualCostUsd = 0;
   let refundImages = 0;
@@ -328,20 +463,13 @@ export async function processJob(input: ProcessInput): Promise<void> {
 
     const built = buildSlotPrompt(selection, spec);
 
-    // 先に試して失敗したプロバイダを覚えておく（OpenAI の拒否率を後から数えるため）
-    let attempted: { provider: ProviderName; kind: string; detail: string } | null = null;
+    // 先に試して失敗したプロバイダを順に覚えておく（OpenAI の拒否率を後から数えるため）
+    const trail: FailedAttempt[] = [];
 
-    for (let index = 0; index < usable.length; index += 1) {
-      const { provider: name, method } = usable[index]!;
+    for (let index = 0; index < runnable.length; index += 1) {
+      const { provider: name, method } = runnable[index]!;
       const provider = createProvider(name, keys)!;
-      const isLast = index === usable.length - 1;
-
-      // semantic masking はマスク画像を渡せないので、目印つき画像と文章で伝える。
-      // 材料が作れなかった場合はこの試行を飛ばす（黙って別物を送らない）。
-      if (method === "semantic_mask" && (!maskGuide || !maskRegion || !removal)) {
-        if (isLast) break;
-        continue;
-      }
+      const isLast = index === runnable.length - 1;
 
       const semantic =
         method === "semantic_mask" && maskRegion && removal
@@ -352,8 +480,30 @@ export async function processJob(input: ProcessInput): Promise<void> {
             })
           : null;
 
+      // ★ 関数の残り時間が足りなければ呼ばない。呼んでも途中で関数ごと落ち、
+      //   行が running のまま・予約が精算されないまま残る。
+      const timeoutMs = callTimeoutMs(deadline);
+      if (timeoutMs === null) {
+        // こちらの都合で打ち切ったので枚数は返す
+        refundImages += 1;
+        await admin
+          .from("job_images")
+          .update({
+            status: "failed",
+            provider: trail.at(-1)?.provider ?? name,
+            edit_method: method,
+            ...attemptColumns(trail),
+            error_kind: TIME_BUDGET_EXHAUSTED.kind,
+            error_message: `${TIME_BUDGET_EXHAUSTED.code}: ${TIME_BUDGET_EXHAUSTED.detail}`,
+            finished_at: new Date().toISOString(),
+          })
+          .eq("job_id", jobId)
+          .eq("slot", spec.slot);
+        return;
+      }
+
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), PER_CALL_TIMEOUT_MS);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const result = await provider.edit(
@@ -379,7 +529,9 @@ export async function processJob(input: ProcessInput): Promise<void> {
         );
 
         const resultPath = `${userId}/${jobId}/slot-${spec.slot}.png`;
-        await admin.storage.from("results").upload(resultPath, Buffer.from(result.image), {
+        // モデルが比を合わせるために足した無地の帯を切る（委託者指示・2026-09-30）
+        const resultPng = await trimForStorage(result.image, `slot-${spec.slot}`);
+        await admin.storage.from("results").upload(resultPath, resultPng, {
           contentType: "image/png",
           upsert: true,
         });
@@ -394,9 +546,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
             edit_method: method,
             // semantic masking は別のプロンプトを使うので、ハッシュも差し替える
             ...(semantic ? { prompt_hash: semantic.hash } : {}),
-            attempted_provider: attempted?.provider ?? null,
-            attempted_error_kind: attempted?.kind ?? null,
-            attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+            ...attemptColumns(trail),
             result_path: resultPath,
             actual_cost_usd: result.estimatedCostUsd,
             latency_ms: result.latencyMs,
@@ -418,7 +568,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
           (classified.kind !== "policy" || policy.onPolicy);
 
         if (canFallback) {
-          attempted = { provider: name, kind: classified.kind, detail: classified.detail };
+          trail.push({ provider: name, kind: classified.kind, detail: classified.detail });
           clearTimeout(timeout);
           continue;
         }
@@ -432,9 +582,7 @@ export async function processJob(input: ProcessInput): Promise<void> {
             status: "failed",
             provider: name,
             edit_method: method,
-            attempted_provider: attempted?.provider ?? null,
-            attempted_error_kind: attempted?.kind ?? null,
-            attempted_error_message: attempted ? attempted.detail.slice(0, 2000) : null,
+            ...attemptColumns(trail),
             error_kind: classified.kind,
             error_message: `${classified.code}: ${classified.detail}`.slice(0, 2000),
             finished_at: new Date().toISOString(),
@@ -446,6 +594,21 @@ export async function processJob(input: ProcessInput): Promise<void> {
         clearTimeout(timeout);
       }
     }
+
+    // ここへ来るのは、試せる組み合わせが 1 つも無かったときだけ
+    // （OpenAI のキーが無く、除去の目印つき画像も作れなかった）。こちらの都合なので枚数は返す。
+    refundImages += 1;
+    await admin
+      .from("job_images")
+      .update({
+        status: "failed",
+        ...attemptColumns(trail),
+        error_kind: "infra",
+        error_message: "試せるプロバイダがありません（除去の目印つき画像を作れませんでした）",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("job_id", jobId)
+      .eq("slot", spec.slot);
   }
 
   async function worker(): Promise<void> {
